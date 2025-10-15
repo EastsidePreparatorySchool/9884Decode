@@ -8,7 +8,7 @@ import java.util.function.*;
 import java.util.stream.*;
 
 public class Quad<T> implements Collection<T>{
-    public T w, x, y, z;
+    public final T w, x, y, z;
 
     public Quad(T w, T x, T y, T z){
         this.w = w;
