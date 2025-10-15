@@ -25,10 +25,6 @@ public class TeleOp extends LinearOpMode{
         telemetry = robot.init(hardwareMap, telemetry);
         waitForStart();
 
-        boolean aPressed = false;
-        int clawPos = 0;
-        int sprocketPos = robot.sprocket.getCurrentPosition();
-
         while(opModeIsActive()){
             double lx = gamepad1.left_stick_x;
             double ly = -gamepad1.left_stick_y;
@@ -64,31 +60,7 @@ public class TeleOp extends LinearOpMode{
             telemetry.addData("power z", power.z);
             robot.logHeading();
 
-            int actuatorpos = robot.actuator.getCurrentPosition();
-            if(gamepad2.dpad_up && actuatorpos > ACTUATOR_MAX_POS + ACTUATOR_SAFETY_BUFFER && robot.sprocket.getCurrentPosition() > -1350)
-                robot.actuator.setPower(actuatorpos > ACTUATOR_MAX_POS + 2 * ACTUATOR_SAFETY_BUFFER ? 1 : 0.5);
-            else if(gamepad2.dpad_down && actuatorpos < -ACTUATOR_SAFETY_BUFFER)
-                robot.actuator.setPower(actuatorpos < 2 * -ACTUATOR_SAFETY_BUFFER ? -1 : -0.5);
-            else robot.actuator.setPower(0);
-
-            if(gamepad2.a) sprocketPos = SPROCKET_REST;
-            if(gamepad2.b) sprocketPos = SPROCKET_WALL;
-            //if(gamepad2.x) sprocketPos = SPROCKET_BAR;
-
-            sprocketPos += Math.signum(gamepad2.right_stick_y) * SPROCKET_CONSTANT * (gamepad2.left_bumper ? SPROCKET_SLOW_MULT : 1);
-            sprocketPos = Math.max(sprocketPos, -1600);
-            sprocketPos = Math.min(sprocketPos, 0);
-            robot.sprocket.setTargetPosition(sprocketPos);
-
-            if(gamepad2.right_bumper && !aPressed){
-                aPressed = true;
-                clawPos = 1 - clawPos;
-                robot.claw.setPosition(clawPos / 1.5d);
-            }
-            if(!gamepad2.right_bumper) aPressed = false;
-
             robot.logMotorPos();
-            robot.logPose();
             telemetry.update();
         }
     }
