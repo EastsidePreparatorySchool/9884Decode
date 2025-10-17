@@ -29,10 +29,6 @@ public final class Hardware{
     public Telemetry telemetry;
     public Quad<DcMotor> driveMotors;
     public BNO055IMU imu;
-    public DcMotor actuator;
-    public DcMotor sprocket;
-    public Servo claw;
-    public SparkFunOTOS odo;
 
     public static double SPEED_CONSTANT     = 0.80;
     public static double AUTO_CONSTANT      = 0.50;
@@ -61,8 +57,6 @@ public final class Hardware{
         parameters.angleUnit = BNO055IMU.AngleUnit.RADIANS;
         imu.initialize(parameters);
 
-        odo = hardwareMap.get(SparkFunOTOS.class, "odo");
-
         this.telemetry = telemetry;
         this.telemetry.setMsTransmissionInterval(50);
         this.telemetry.addLine("Initialization Status Successful");
@@ -73,23 +67,10 @@ public final class Hardware{
                 driveMotorFR = hardwareMap.dcMotor.get("DriveFR"),
                 driveMotorBL = hardwareMap.dcMotor.get("DriveBL"),
                 driveMotorBR = hardwareMap.dcMotor.get("DriveBR");
-        sprocket = hardwareMap.dcMotor.get("Sprocket");
-        actuator = hardwareMap.dcMotor.get("Actuator");
-        claw = hardwareMap.servo.get("Claw");
-        sprocket.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        sprocket.setTargetPosition(0);
-        sprocket.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        sprocket.setPower(1);
-
-        if(auto){
-            actuator.setTargetPosition(0);
-            actuator.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            actuator.setPower(1);
-        }
 
         driveMotors = of(driveMotorFL, driveMotorFR, driveMotorBL, driveMotorBR);
-        driveMotorFL.setDirection(DcMotorSimple.Direction.REVERSE);
-        driveMotorBL.setDirection(DcMotorSimple.Direction.REVERSE);
+        driveMotorFR.setDirection(DcMotorSimple.Direction.REVERSE);
+        driveMotorBR.setDirection(DcMotorSimple.Direction.REVERSE);
         for (DcMotor motor : driveMotors) {
             motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -230,18 +211,9 @@ public final class Hardware{
         telemetry.addData("posBR", driveMotors.x.getCurrentPosition());
         telemetry.addData("posFL", driveMotors.y.getCurrentPosition());
         telemetry.addData("posBL", driveMotors.z.getCurrentPosition());
-        telemetry.addData("posAct", actuator.getCurrentPosition());
-        telemetry.addData("posSpk", sprocket.getCurrentPosition());
-        telemetry.addData("claw", claw.getPosition());
     }
 
     public void logHeading(){
         telemetry.addData("theta", getHeading());
-    }
-
-    public void logPose(){
-        telemetry.addData("x", odo.getPosition().x);
-        telemetry.addData("y", odo.getPosition().y);
-        telemetry.addData("h", odo.getPosition().h);
     }
 }
