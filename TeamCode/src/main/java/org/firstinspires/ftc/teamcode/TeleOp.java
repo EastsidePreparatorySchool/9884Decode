@@ -16,10 +16,6 @@ import java.util.*;
 public class TeleOp extends LinearOpMode{
     Hardware robot = new Hardware();
 
-    public static final Vector4 VDrive  = of(+1d, +1d, +1d, +1d);
-    public static final Vector4 VStrafe = of(+1d, -1d, -1d, +1d);
-    public static final Vector4 VTurn   = of(+1d, -1d, +1d, -1d);
-
     @Override
     public void runOpMode(){
         telemetry = robot.init(hardwareMap, telemetry);

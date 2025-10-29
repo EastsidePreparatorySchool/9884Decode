@@ -33,12 +33,6 @@ public final class Hardware{
     public static double SPEED_CONSTANT     = 0.80;
     public static double AUTO_CONSTANT      = 0.50;
     public static double SLOW_MODE_CONSTANT = 0.10;
-    public static int SPROCKET_CONSTANT  = 15;
-    public static double SPROCKET_SLOW_MULT = 1d/2;
-    public static int SPROCKET_REST = -100;
-    public static int SPROCKET_WALL = -422;
-    public static final int ACTUATOR_SAFETY_BUFFER = 150;
-    public static final int ACTUATOR_MAX_POS = -6100;
     public static final double ANGLE_ETA = Math.PI / 16;
 
     public static final Vector4 VDrive  = of(+1d, +1d, +1d, +1d);
