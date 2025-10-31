@@ -1,35 +1,27 @@
 package org.firstinspires.ftc.teamcode.test;
 
 import android.annotation.SuppressLint;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.os.StrictMode;
+import android.os.Build;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.util.ThreadPool;
 
-import org.firstinspires.ftc.robotcore.external.function.Consumer;
-import org.firstinspires.ftc.robotcore.external.function.Continuation;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
-import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
+import org.firstinspires.ftc.teamcode.lib.CameraStreamProcessor;
+import org.firstinspires.ftc.teamcode.lib.ChainedVisionProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import org.opencv.android.Utils;
-import org.opencv.core.Mat;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /*
  * https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/apriltag_intro/apriltag-intro.html
@@ -38,35 +30,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @Config
 @TeleOp(name = "April Tag", group = "9884")
 public class CameraTest extends LinearOpMode {
-    public static class CameraStreamProcessor implements VisionProcessor, CameraStreamSource{
-        private final AtomicReference<Bitmap> lastFrame =
-                new AtomicReference<>(Bitmap.createBitmap(1, 1, Bitmap.Config.RGB_565));
-
-        @Override
-        public void init(int width, int height, CameraCalibration calibration) {
-            lastFrame.set(Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565));
-        }
-
-        @Override
-        public Object processFrame(Mat frame, long captureTimeNanos) {
-            Bitmap b = Bitmap.createBitmap(frame.width(), frame.height(), Bitmap.Config.RGB_565);
-            Utils.matToBitmap(frame, b);
-            lastFrame.set(b);
-            return null;
-        }
-
-        @Override
-        public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight,
-                                float scaleBmpPxToCanvasPx, float scaleCanvasDensity,
-                                Object userContext) {
-            // do nothing
-        }
-
-        @Override
-        public void getFrameBitmap(Continuation<? extends Consumer<Bitmap>> continuation) {
-            continuation.dispatch(bitmapConsumer -> bitmapConsumer.accept(lastFrame.get()));
-        }
-    }
 
     private AprilTagProcessor processor;
     private VisionPortal portal;
@@ -75,20 +38,18 @@ public class CameraTest extends LinearOpMode {
     private static final Position camPos = new Position(DistanceUnit.MM, 0, 0, 0, 0);
     private static final YawPitchRollAngles camRot = new YawPitchRollAngles(AngleUnit.DEGREES, 0, -90, 0, 0);
 
-    public static boolean streamToDash = true;
+    public static Telemetry t;
 
     @Override
     public void runOpMode() {
-
         FtcDashboard instance = FtcDashboard.getInstance();
         telemetry = new MultipleTelemetry(telemetry, instance.getTelemetry());
+        t = telemetry;
 
-        streamer = new CameraStreamProcessor();
+        telemetry.addData("ver", Build.VERSION.SDK);
+
         buildVision();
-        if (streamToDash){
-            StrictMode.setVmPolicy(StrictMode.VmPolicy.LAX);
-            instance.startCameraStream(streamer, 30);
-        }
+        instance.startCameraStream(streamer, 30);
         waitForStart();
         while (opModeIsActive()) {
             telemetryAprilTag();
@@ -106,10 +67,17 @@ public class CameraTest extends LinearOpMode {
                 .setCameraPose(camPos, camRot)
                 .build();
 
+        streamer = new CameraStreamProcessor();
+
         portal = new VisionPortal.Builder()
                 .setCamera(BuiltinCameraDirection.BACK)
-                .addProcessor(processor)
-                .addProcessor(streamer)
+
+                .addProcessor(new ChainedVisionProcessor.Builder()
+                        .addProcessor(processor)
+                        .addProcessor(streamer)
+                        .build())
+//                .addProcessor(processor)
+//                .addProcessor(streamer)
                 .setAutoStartStreamOnBuild(true)
                 .build();
     }
