@@ -72,14 +72,15 @@ public class CameraTest extends LinearOpMode {
         portal = new VisionPortal.Builder()
                 .setCamera(BuiltinCameraDirection.BACK)
 
-                .addProcessor(new ChainedVisionProcessor.Builder()
-                        .addProcessor(processor)
-                        .addProcessor(streamer)
-                        .build())
-//                .addProcessor(processor)
-//                .addProcessor(streamer)
+//                .addProcessor(new ChainedVisionProcessor.Builder()
+//                        .addProcessor(processor)
+//                        .addProcessor(streamer)
+//                        .build())
+                .addProcessor(processor)
+                .addProcessor(streamer)
                 .setAutoStartStreamOnBuild(true)
                 .build();
+        streamer.setInternalSource(portal);
     }
 
     private void buildVisionEasy(){
