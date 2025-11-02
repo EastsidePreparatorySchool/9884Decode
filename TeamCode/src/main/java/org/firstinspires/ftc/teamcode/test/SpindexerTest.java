@@ -81,7 +81,7 @@ public class SpindexerTest extends LinearOpMode {
                 } else {
                     telemetry.addLine("ERROR: Spindexer not initialized!");
                 }
-            } else if (!moveLeft) {the
+            } else if (!moveLeft) {
                 lastMoveLeft = false;
             }
             

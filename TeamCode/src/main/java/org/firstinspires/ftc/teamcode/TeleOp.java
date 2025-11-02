@@ -5,10 +5,10 @@ import static org.firstinspires.ftc.teamcode.lib.Vector4.*;
 
 import static java.lang.Math.*;
 
+import android.annotation.SuppressLint;
+
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.lib.Hardware;
 import org.firstinspires.ftc.teamcode.lib.Vector4;
@@ -18,15 +18,6 @@ import java.util.*;
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
 public class TeleOp extends LinearOpMode{
     Hardware robot = new Hardware();
-
-    public static final Vector4 VDrive  = of(+1d, +1d, +1d, +1d);
-    public static final Vector4 VStrafe = of(+1d, -1d, -1d, +1d);
-    public static final Vector4 VTurn   = of(+1d, -1d, +1d, -1d);
-    
-    // Spindexer and other hardware
-    private Servo spindexer;
-    private DcMotor turret;
-    private CRServo lift;
     
     // Spindexer configuration
     // Swapped: 0.0 appears to be rightmost on your servo, so 1.0 = leftmost
@@ -37,55 +28,16 @@ public class TeleOp extends LinearOpMode{
     // State tracking
     private double currentSpindexerPosition = 0.5; // Start at middle
     
-    // Button state tracking
-    private boolean lastRB = false;
-    private boolean lastA = false;
-    private boolean lastB = false;
-    private boolean lastY = false;
-    private boolean lastX = false;
-    private boolean lastLB = false;  // Left bumper for turret+lift sequence
-    
     // Button X sequence state (turret + lift)
     private boolean buttonXSequenceActive = false;
-    private com.qualcomm.robotcore.util.ElapsedTime buttonXSequenceTimer = new com.qualcomm.robotcore.util.ElapsedTime();
+    private final ElapsedTime buttonXSequenceTimer = new ElapsedTime();
     private static final long LIFT_UP_DURATION_MS = 3500;
     private static final long LIFT_DOWN_DURATION_MS = 2000;
 
+    @SuppressLint("DefaultLocale")
     @Override
     public void runOpMode(){
         telemetry = robot.init(hardwareMap, telemetry);
-        
-        // Initialize spindexer servo
-        try {
-            spindexer = hardwareMap.get(Servo.class, "spindexer");
-            spindexer.setPosition(currentSpindexerPosition);
-            telemetry.addLine("Spindexer initialized");
-        } catch (Exception e) {
-            spindexer = null;
-            telemetry.addLine("WARNING: Spindexer not found!");
-        }
-        
-        // Initialize turret motor (called "turretFly")
-        try {
-            turret = hardwareMap.get(DcMotor.class, "turretFly");
-            turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            telemetry.addLine("Turret (turretFly) initialized");
-        } catch (Exception e) {
-            turret = null;
-            telemetry.addLine("WARNING: Turret motor 'turretFly' not found!");
-            telemetry.addLine("Configure 'turretFly' as DcMotor in Robot Configuration");
-        }
-        
-        // Initialize lift servo (called "lift", CRServo)
-        try {
-            lift = hardwareMap.get(CRServo.class, "lift");
-            telemetry.addLine("Lift (lift) initialized as CRServo");
-        } catch (Exception e) {
-            lift = null;
-            telemetry.addLine("WARNING: Lift servo 'lift' not found!");
-            telemetry.addLine("Configure 'lift' as CRServo in Robot Configuration");
-        }
         
         telemetry.update();
         waitForStart();
@@ -141,9 +93,9 @@ public class TeleOp extends LinearOpMode{
             telemetry.addData("Spindexer Pos", String.format("%.3f", currentSpindexerPosition));
             telemetry.addLine("");
             telemetry.addLine("--- Hardware Status ---");
-            telemetry.addData("Spindexer", spindexer != null ? "OK" : "NULL");
-            telemetry.addData("Turret", turret != null ? "OK" : "NULL");
-            telemetry.addData("Lift", lift != null ? "OK" : "NULL");
+            telemetry.addData("Spindexer", robot.spindexer != null ? "OK" : "NULL");
+            telemetry.addData("Turret", robot.turretFlywheel != null ? "OK" : "NULL");
+            telemetry.addData("Lift", robot.lift != null ? "OK" : "NULL");
             if (buttonXSequenceActive) {
                 telemetry.addData("Turret+Lift Sequence", "Active - " + String.format("%.1f", buttonXSequenceTimer.seconds()) + "s");
             }
@@ -152,89 +104,58 @@ public class TeleOp extends LinearOpMode{
         }
         
         // Stop all on exit
-        if (turret != null) turret.setPower(0);
-        if (lift != null) lift.setPower(0);
+        robot.turretFlywheel.setPower(0);
+        robot.lift.setPower(0);
     }
     
     private void handleButtonControls() {
         // Button RB: Reset spindexer to leftmost position (Driver 2)
-        if (gamepad2.right_bumper && !lastRB) {
-            if (spindexer != null) {
-                currentSpindexerPosition = SPINDEXER_LEFT_LIMIT;
-                spindexer.setPosition(currentSpindexerPosition);
-                telemetry.addLine("Button RB (GP2): Spindexer reset to left");
-            } else {
-                telemetry.addLine("ERROR: Spindexer is null! Check Robot Configuration.");
-            }
+        if (gamepad2.rightBumperWasPressed()) {
+            currentSpindexerPosition = SPINDEXER_LEFT_LIMIT;
+            robot.spindexer.setPosition(currentSpindexerPosition);
+            telemetry.addLine("Button RB (GP2): Spindexer reset to left");
         }
-        lastRB = gamepad2.right_bumper;
         
         // Button B: 60 degrees clockwise (Driver 2)
-        if (gamepad2.b && !lastB) {
-            if (spindexer != null) {
-                spinSpindexerClockwise(60.0);
-                telemetry.addLine("Button B (GP2): Spun 60° clockwise");
-            } else {
-                telemetry.addLine("ERROR: Spindexer is null!");
-            }
+        if (gamepad2.bWasPressed()) {
+            spinSpindexerClockwise(60.0);
+            telemetry.addLine("Button B (GP2): Spun 60° clockwise");
         }
-        lastB = gamepad2.b;
         
         // Button X: 120 degrees counterclockwise (Driver 2)
-        if (gamepad2.x && !lastX) {
-            if (spindexer != null) {
-                spinSpindexerCounterclockwise(135.0);
-                telemetry.addLine("Button X (GP2): Spun 120° counterclockwise");
-            } else {
-                telemetry.addLine("ERROR: Spindexer is null!");
-            }
+        if (gamepad2.xWasPressed()) {
+            spinSpindexerCounterclockwise(135.0);
+            telemetry.addLine("Button X (GP2): Spun 120° counterclockwise");
         }
-        lastX = gamepad2.x;
         
         // Button Y: 60 degrees counterclockwise (Driver 2)
-        if (gamepad2.y && !lastY) {
-            if (spindexer != null) {
-                spinSpindexerCounterclockwise(70.0);
-                telemetry.addLine("Button Y (GP2): Spun 60° counterclockwise");
-            } else {
-                telemetry.addLine("ERROR: Spindexer is null!");
-            }
+        if (gamepad2.yWasPressed()) {
+            spinSpindexerCounterclockwise(70.0);
+            telemetry.addLine("Button Y (GP2): Spun 60° counterclockwise");
         }
-        lastY = gamepad2.y;
         
         // Button A: 140 degrees clockwise (Driver 2)
-        if (gamepad2.a && !lastA) {
-            if (spindexer != null) {
-                spinSpindexerClockwise(140.0);
-                telemetry.addLine("Button A (GP2): Spun 140° clockwise");
-            } else {
-                telemetry.addLine("ERROR: Spindexer is null!");
-            }
+        if (gamepad2.aWasPressed()) {
+            spinSpindexerClockwise(140.0);
+            telemetry.addLine("Button A (GP2): Spun 140° clockwise");
+
         }
-        lastA = gamepad2.a;
         
         // Button LB: Turret + Lift sequence (Driver 2)
-        if (gamepad2.left_bumper && !lastLB && !buttonXSequenceActive) {
+        if (gamepad2.leftBumperWasPressed() && !buttonXSequenceActive) {
             buttonXSequenceActive = true;
             buttonXSequenceTimer.reset();
-            
-            if (turret != null) {
-                turret.setPower(1.0);
-                telemetry.addLine("Button LB (GP2): Turret started at full power");
-            } else {
-                telemetry.addLine("ERROR: Turret motor is null!");
-            }
-            
-            if (lift != null) {
-                lift.setPower(1.0); // Start lifting up
-                telemetry.addLine("Button LB (GP2): Lift started (up)");
-            } else {
-                telemetry.addLine("ERROR: Lift servo is null!");
-            }
+
+            robot.turretFlywheel.setPower(1.0);
+            telemetry.addLine("Button LB (GP2): Turret started at full power");
+
+
+            robot.lift.setPower(1.0); // Start lifting up
+            telemetry.addLine("Button LB (GP2): Lift started (up)");
+
             
             telemetry.addLine("Button LB (GP2): Turret+Lift sequence started");
         }
-        lastLB = gamepad2.left_bumper;
         
         // Handle turret + lift sequence timing
         handleTurretLiftSequence();
@@ -245,7 +166,7 @@ public class TeleOp extends LinearOpMode{
         // Since LEFT_LIMIT (1.0) > RIGHT_LIMIT (0.0), counterclockwise = increasing position
         double positionChange = (degrees / SPINDEXER_DEGREE_RANGE) * Math.abs(SPINDEXER_LEFT_LIMIT - SPINDEXER_RIGHT_LIMIT);
         currentSpindexerPosition = Math.min(SPINDEXER_LEFT_LIMIT, currentSpindexerPosition + positionChange);
-        spindexer.setPosition(currentSpindexerPosition);
+        robot.spindexer.setPosition(currentSpindexerPosition);
     }
     
     private void spinSpindexerClockwise(double degrees) {
@@ -253,7 +174,7 @@ public class TeleOp extends LinearOpMode{
         // Since RIGHT_LIMIT (0.0) < LEFT_LIMIT (1.0), clockwise = decreasing position
         double positionChange = (degrees / SPINDEXER_DEGREE_RANGE) * Math.abs(SPINDEXER_LEFT_LIMIT - SPINDEXER_RIGHT_LIMIT);
         currentSpindexerPosition = Math.max(SPINDEXER_RIGHT_LIMIT, currentSpindexerPosition - positionChange);
-        spindexer.setPosition(currentSpindexerPosition);
+        robot.spindexer.setPosition(currentSpindexerPosition);
     }
     
     private void handleTurretLiftSequence() {
@@ -264,29 +185,18 @@ public class TeleOp extends LinearOpMode{
         
         if (elapsedMs < LIFT_UP_DURATION_MS) {
             // Still lifting up (forward) - keep setting power to ensure it stays on
-            if (lift != null) {
-                lift.setPower(1.0);
-            }
+            robot.lift.setPower(1.0);
             // Keep turret running at full power
-            if (turret != null) {
-                turret.setPower(1.0);
-            }
+            robot.turretFlywheel.setPower(1.0);
         } else if (elapsedMs < LIFT_UP_DURATION_MS + LIFT_DOWN_DURATION_MS) {
             // Switch to lifting down (reverse) - turret still running
-            if (lift != null) {
-                lift.setPower(-1.0);
-            }
-            if (turret != null) {
-                turret.setPower(1.0);
-            }
+            robot.lift.setPower(-1.0);
+            robot.turretFlywheel.setPower(1.0);
+
         } else {
             // Sequence complete - stop everything
-            if (lift != null) {
-                lift.setPower(0);
-            }
-            if (turret != null) {
-                turret.setPower(0);
-            }
+            robot.lift.setPower(0);
+            robot.turretFlywheel.setPower(0);
             buttonXSequenceActive = false;
             telemetry.addLine("Turret+Lift sequence complete");
         }
