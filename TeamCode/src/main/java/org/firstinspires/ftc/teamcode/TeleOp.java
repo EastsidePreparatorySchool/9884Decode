@@ -5,6 +5,7 @@ import static org.firstinspires.ftc.teamcode.lib.Vector4.*;
 
 import static java.lang.Math.*;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.lib.Hardware;
@@ -12,9 +13,16 @@ import org.firstinspires.ftc.teamcode.lib.Vector4;
 
 import java.util.*;
 
+@Config
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
 public class TeleOp extends LinearOpMode{
     Hardware robot = new Hardware();
+
+    public static float spindexerPosition;
+    public static float liftPower;
+    public static float turretPower;
+
+    int idealSpindexState = SpindexerPosition.A_IN;
 
     @Override
     public void runOpMode(){
@@ -49,14 +57,24 @@ public class TeleOp extends LinearOpMode{
             power.mult(1 - 0.5 * gamepad1.right_trigger);
             robot.powerMotors(power);
 
-            telemetry.addData("powers", power.toString());
             telemetry.addData("power w", power.w);
             telemetry.addData("power x", power.x);
             telemetry.addData("power y", power.y);
             telemetry.addData("power z", power.z);
             robot.logHeading();
-
             robot.logMotorPos();
+
+            if(gamepad2.dpadRightWasPressed()){
+                switch (idealSpindexState){
+                    case SpindexerPosition.A_IN:
+                        idealSpindexState = SpindexerPosition.B_IN;
+                        break;
+                    case SpindexerPosition.B_IN:
+                        idealSpindexState = SpindexerPosition.C_IN;
+                        break;
+                }
+            } else if(gamepad2.a)
+
             telemetry.update();
         }
     }
