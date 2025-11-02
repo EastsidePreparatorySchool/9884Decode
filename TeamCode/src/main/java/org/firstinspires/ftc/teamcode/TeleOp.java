@@ -18,21 +18,13 @@ import java.util.*;
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
 public class TeleOp extends LinearOpMode{
     Hardware robot = new Hardware();
-    
-    // Spindexer configuration
-    // Swapped: 0.0 appears to be rightmost on your servo, so 1.0 = leftmost
-    private static final double SPINDEXER_LEFT_LIMIT = 1.0;   // Leftmost position for intake
-    private static final double SPINDEXER_RIGHT_LIMIT = 0;  // Rightmost position
-    private static final double SPINDEXER_DEGREE_RANGE = 300.0; // Total servo range in degrees
-    
+
     // State tracking
-    private double currentSpindexerPosition = 0.5; // Start at middle
+    private double spindexerTarget = 0.5; // Start at middle
     
     // Button X sequence state (turret + lift)
     private boolean buttonXSequenceActive = false;
     private final ElapsedTime buttonXSequenceTimer = new ElapsedTime();
-    private static final long LIFT_UP_DURATION_MS = 3500;
-    private static final long LIFT_DOWN_DURATION_MS = 2000;
 
     @SuppressLint("DefaultLocale")
     @Override
@@ -60,17 +52,14 @@ public class TeleOp extends LinearOpMode{
             powerList.add(mult(VDrive, ly));
             powerList.add(mult(VStrafe, lx));
             powerList.add(mult(VTurn, rx));
-            for(Vector4 i : powerList)
-                telemetry.addLine(i.toString());
 
             //noinspection OptionalGetWithoutIsPresent
             Vector4 power = powerList.stream().reduce((a, b) -> add(a, b)).get().mult(SPEED_CONSTANT);
-            double max = max(1, power.stream().max().orElse(0) / SPEED_CONSTANT);
-            power.div(max);
+            //scale such that no motor is powered outside of [-1.0,1.0]
+            power.div(max(1, power.stream().max().orElse(0) / SPEED_CONSTANT));
             power.mult(1 - 0.5 * gamepad1.right_trigger);
             robot.powerMotors(power);
 
-            telemetry.addData("powers", power.toString());
             telemetry.addData("power w", power.w);
             telemetry.addData("power x", power.x);
             telemetry.addData("power y", power.y);
@@ -78,11 +67,9 @@ public class TeleOp extends LinearOpMode{
             robot.logHeading();
 
             robot.logMotorPos();
-            
-            // Handle button controls (Driver 2)
+
             handleButtonControls();
-            
-            // Debug: Show button states
+
             telemetry.addLine("--- Driver 2 Controls ---");
             telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
             telemetry.addData("GP2 LB (Turret+Lift)", gamepad2.left_bumper);
@@ -90,7 +77,7 @@ public class TeleOp extends LinearOpMode{
             telemetry.addData("GP2 B (60° CW)", gamepad2.b);
             telemetry.addData("GP2 Y (60° CCW)", gamepad2.y);
             telemetry.addData("GP2 X (135° CCW)", gamepad2.x);
-            telemetry.addData("Spindexer Pos", String.format("%.3f", currentSpindexerPosition));
+            telemetry.addData("Spindexer Pos", String.format("%.3f", spindexerTarget));
             telemetry.addLine("");
             telemetry.addLine("--- Hardware Status ---");
             telemetry.addData("Spindexer", robot.spindexer != null ? "OK" : "NULL");
@@ -102,8 +89,7 @@ public class TeleOp extends LinearOpMode{
             
             telemetry.update();
         }
-        
-        // Stop all on exit
+
         robot.turretFlywheel.setPower(0);
         robot.lift.setPower(0);
     }
@@ -111,8 +97,8 @@ public class TeleOp extends LinearOpMode{
     private void handleButtonControls() {
         // Button RB: Reset spindexer to leftmost position (Driver 2)
         if (gamepad2.rightBumperWasPressed()) {
-            currentSpindexerPosition = SPINDEXER_LEFT_LIMIT;
-            robot.spindexer.setPosition(currentSpindexerPosition);
+            spindexerTarget = SPINDEXER_LEFT_LIMIT;
+            robot.spindexer.setPosition(spindexerTarget);
             telemetry.addLine("Button RB (GP2): Spindexer reset to left");
         }
         
@@ -165,38 +151,37 @@ public class TeleOp extends LinearOpMode{
         // Counterclockwise (left) = moving toward LEFT_LIMIT (1.0 in this case)
         // Since LEFT_LIMIT (1.0) > RIGHT_LIMIT (0.0), counterclockwise = increasing position
         double positionChange = (degrees / SPINDEXER_DEGREE_RANGE) * Math.abs(SPINDEXER_LEFT_LIMIT - SPINDEXER_RIGHT_LIMIT);
-        currentSpindexerPosition = Math.min(SPINDEXER_LEFT_LIMIT, currentSpindexerPosition + positionChange);
-        robot.spindexer.setPosition(currentSpindexerPosition);
+        spindexerTarget = Math.min(SPINDEXER_LEFT_LIMIT, spindexerTarget + positionChange);
+        robot.spindexer.setPosition(spindexerTarget);
     }
     
     private void spinSpindexerClockwise(double degrees) {
         // Clockwise (right) = moving toward RIGHT_LIMIT (0.0 in this case)
         // Since RIGHT_LIMIT (0.0) < LEFT_LIMIT (1.0), clockwise = decreasing position
         double positionChange = (degrees / SPINDEXER_DEGREE_RANGE) * Math.abs(SPINDEXER_LEFT_LIMIT - SPINDEXER_RIGHT_LIMIT);
-        currentSpindexerPosition = Math.max(SPINDEXER_RIGHT_LIMIT, currentSpindexerPosition - positionChange);
-        robot.spindexer.setPosition(currentSpindexerPosition);
+        spindexerTarget = Math.max(SPINDEXER_RIGHT_LIMIT, spindexerTarget - positionChange);
+        robot.spindexer.setPosition(spindexerTarget);
     }
     
     private void handleTurretLiftSequence() {
         if (!buttonXSequenceActive) return;
-        
-        double elapsedSeconds = buttonXSequenceTimer.seconds();
-        double elapsedMs = elapsedSeconds * 1000.0;
+
+        double elapsedMs = buttonXSequenceTimer.seconds() * 1000.0;
         
         if (elapsedMs < LIFT_UP_DURATION_MS) {
             // Still lifting up (forward) - keep setting power to ensure it stays on
             robot.lift.setPower(1.0);
             // Keep turret running at full power
-            robot.turretFlywheel.setPower(1.0);
+            robot.revTurret();
         } else if (elapsedMs < LIFT_UP_DURATION_MS + LIFT_DOWN_DURATION_MS) {
             // Switch to lifting down (reverse) - turret still running
             robot.lift.setPower(-1.0);
-            robot.turretFlywheel.setPower(1.0);
+            robot.revTurret();
 
         } else {
             // Sequence complete - stop everything
             robot.lift.setPower(0);
-            robot.turretFlywheel.setPower(0);
+            robot.endRevTurret();
             buttonXSequenceActive = false;
             telemetry.addLine("Turret+Lift sequence complete");
         }

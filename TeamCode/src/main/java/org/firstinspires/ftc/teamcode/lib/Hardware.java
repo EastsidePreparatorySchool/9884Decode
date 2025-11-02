@@ -7,12 +7,13 @@ import static org.firstinspires.ftc.teamcode.lib.Vector4.*;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.hardware.bosch.BHI260IMU;
 import com.qualcomm.hardware.sparkfun.SparkFunOTOS;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.hardware.bosch.BNO055IMU;
+import com.qualcomm.hardware.bosch.BHI260IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoController;
 
@@ -27,6 +28,14 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
  */
 @Config // ftc dash: 192.168.43.1:8080/dash
 public final class Hardware{
+    // Spindexer configuration
+    // Swapped: 0.0 appears to be rightmost on your servo, so 1.0 = leftmost
+    public static final double SPINDEXER_LEFT_LIMIT = 1.0;   // Leftmost position for intake
+    public static final double SPINDEXER_RIGHT_LIMIT = 0;  // Rightmost position
+    public static final double SPINDEXER_DEGREE_RANGE = 300.0; // Total servo range in degrees
+    public static final long LIFT_UP_DURATION_MS = 3500;
+    public static final long LIFT_DOWN_DURATION_MS = 2000;
+
     private static class ServoInfo {
         public final int port;
         public final ServoController controller;
@@ -48,7 +57,7 @@ public final class Hardware{
 
     public Telemetry telemetry;
     public Quad<DcMotor> driveMotors;
-    public BNO055IMU imu;
+    public BHI260IMU imu;
     public Servo spindexer;
     public CRServo lift;
     //public AnalogInput liftEncoder;
@@ -56,7 +65,7 @@ public final class Hardware{
     private ServoInfo liftInfo;
     private ServoInfo spindexerInfo;
 
-    public static double SPEED_CONSTANT     = 0.80;
+    public static double SPEED_CONSTANT     = 1.00;
     public static double AUTO_CONSTANT      = 0.50;
     public static double SLOW_MODE_CONSTANT = 0.10;
     public static final double ANGLE_ETA = Math.PI / 16;
@@ -71,10 +80,8 @@ public final class Hardware{
      */
     public Telemetry init(HardwareMap hardwareMap, Telemetry telemetry){return init(hardwareMap, telemetry, false);}
     public Telemetry init(HardwareMap hardwareMap, Telemetry telemetry, boolean auto){
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
-        parameters.angleUnit = BNO055IMU.AngleUnit.RADIANS;
-        imu.initialize(parameters);
+        imu = hardwareMap.get(BHI260IMU.class, "imu");
+        imu.initialize();
 
         this.telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.telemetry.setMsTransmissionInterval(50);
@@ -100,7 +107,7 @@ public final class Hardware{
         lift = hardwareMap.crservo.get("lift");
         liftInfo = new ServoInfo(lift);
         //hardwareMap.analogInput.get("liftEncoder");
-        turretFlywheel = hardwareMap.dcMotor.get("turretFlywheel");
+        turretFlywheel = hardwareMap.dcMotor.get("turretFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         return this.telemetry;
@@ -245,11 +252,10 @@ public final class Hardware{
     /**
      * @return the current heading of the imu, from -PI to PI
      * Returns 0 if IMU is not available
-     * @see BNO055IMU#getAngularOrientation(AxesReference, AxesOrder, AngleUnit)
      */
     public float getHeading(){
         if (imu == null) return 0;
-        return imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS).firstAngle;
+        return imu.getRobotOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS).firstAngle;
     }
 
     public void rotateTime(int t, float d){
