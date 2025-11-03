@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.lib;
 import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.function.BooleanSupplier;
 
@@ -12,9 +13,21 @@ import java.util.function.BooleanSupplier;
  */
 public abstract class Coroutine{
     @Nullable
-    protected abstract Object step();
+    protected abstract Object loop();
 
     private Object latest = null;
+
+    public static class Yield{
+        public static Object termination(){
+            return new Termination();
+        }
+        public static Object wait(BooleanSupplier condition){
+            return new SuspendCondition(condition);
+        }
+        public static Object delay(double seconds){
+            return new SuspendDelay(seconds);
+        }
+    }
 
     private static class Termination {
 
@@ -55,7 +68,7 @@ public abstract class Coroutine{
             routines = new HashSet<>();
         }
 
-        public void step(double time){
+        public void loop(double time){
             //iterate over copy so we can modify the set as we go
             for(Coroutine routine : new ArrayList<>(routines)){
                 Object o = routine.latest;
@@ -80,13 +93,18 @@ public abstract class Coroutine{
                     if (!d.done()) return;
                 }
 
-                routine.latest = routine.step();
+                routine.latest = routine.loop();
             }
         }
 
         public Coroutine start(Coroutine routine){
             routines.add(routine);
             return routine;
+        }
+
+        public Coroutine[] startAll(Coroutine... routines){
+            this.routines.addAll(Arrays.asList(routines));
+            return routines;
         }
 
         public boolean end(Coroutine routine){

@@ -28,13 +28,13 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
  */
 @Config // ftc dash: 192.168.43.1:8080/dash
 public final class Hardware{
-    // Spindexer configuration
-    // Swapped: 0.0 appears to be rightmost on your servo, so 1.0 = leftmost
-    public static final double SPINDEXER_LEFT_LIMIT = 1.0;   // Leftmost position for intake
-    public static final double SPINDEXER_RIGHT_LIMIT = 0;  // Rightmost position
-    public static final double SPINDEXER_DEGREE_RANGE = 300.0; // Total servo range in degrees
-    public static final long LIFT_UP_DURATION_MS = 3500;
-    public static final long LIFT_DOWN_DURATION_MS = 2000;
+
+    public static final double SPINDEXER_DEGREE_RANGE = 300.0;
+    public static final double SPINDEXER_ROTATION_TIME = 0.3;
+    public static final double LIFT_UP_TIME = 3.5;
+    public static final double LIFT_DOWN_TIME = 2.0;
+    public static final double TURRET_REV_UP_TIME = 1.0;
+    public static final double TURRET_REV_DOWN_TIME = 1.0;
 
     private static class ServoInfo {
         public final int port;
@@ -63,12 +63,9 @@ public final class Hardware{
     //public AnalogInput liftEncoder;
     public DcMotor turretFlywheel;
     private ServoInfo liftInfo;
-    private ServoInfo spindexerInfo;
 
     public static double SPEED_CONSTANT     = 1.00;
     public static double AUTO_CONSTANT      = 0.50;
-    public static double SLOW_MODE_CONSTANT = 0.10;
-    public static final double ANGLE_ETA = Math.PI / 16;
 
     public static final Vector4 VDrive  = of(+1d, +1d, +1d, +1d);
     public static final Vector4 VStrafe = of(+1d, -1d, -1d, +1d);
@@ -103,10 +100,13 @@ public final class Hardware{
         resetMotors();
 
         spindexer = hardwareMap.servo.get("spindexer");
-        spindexerInfo = new ServoInfo(spindexer);
+        //when we get the five turn servo, we need to set this to [0.0, 0.4] (2 turns)
+        spindexer.scaleRange(0.0, 1.0);
+        setSpindexer(0);
+
         lift = hardwareMap.crservo.get("lift");
         liftInfo = new ServoInfo(lift);
-        //hardwareMap.analogInput.get("liftEncoder");
+
         turretFlywheel = hardwareMap.dcMotor.get("turretFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
@@ -130,15 +130,11 @@ public final class Hardware{
     }
 
     public void setSpindexer(double degrees){
-        spindexer.setPosition(degrees / 360d);
+        spindexer.setPosition(degrees / SPINDEXER_DEGREE_RANGE);
     }
 
     public double getLiftPos(){
         return liftInfo.getPosition();
-    }
-
-    public double getSpindexerPos(){
-        return spindexerInfo.getPosition();
     }
 
     /**
@@ -148,10 +144,6 @@ public final class Hardware{
      */
     public void powerMotors(Vector4 power){
         //Remember that motors cannot have a power above 1
-        if (driveMotors == null) {
-            telemetry.addLine("ERROR: driveMotors not initialized!");
-            return;
-        }
         driveMotors.w.setPower(power.w);
         driveMotors.x.setPower(power.x);
         driveMotors.y.setPower(power.y);
@@ -175,54 +167,15 @@ public final class Hardware{
     //Util
 
     /**
-     * Causes execution to sleep for a given time
-     * @see Thread#sleep(long)
-     * @see System#currentTimeMillis()
-     */
-    public void sleep(long ms){
-        long start = System.currentTimeMillis();
-        //noinspection StatementWithEmptyBody
-        while(System.currentTimeMillis() < start + ms){}
-    }
-
-    /**
      * Resents motor encodes and stops motors. If goal is solely to stop motors, use {@link Hardware#stopMotors()} instead
      * @see DcMotor#setMode(DcMotor.RunMode)
      * @see DcMotor.RunMode#STOP_AND_RESET_ENCODER
      */
     public void resetMotors(){
-        if (driveMotors == null) return;
         for(DcMotor motor : driveMotors){
             motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
-    }
-
-    /**
-     * Drives robot forward for specific time
-     */
-    public void moveTime(Vector4 dir, double scalar, int ms){
-        powerMotors(mult(dir, AUTO_CONSTANT * scalar));
-        sleep(ms);
-        stopMotors();
-    }
-
-    /**
-     * Turns the robot by an angle, positive is right
-     * @param phase angle to turn by IN DEGREES
-     */
-    @Deprecated
-    public void turn(double phase){
-        //angles are mod 2pi
-        phase *= (-1 * Math.toRadians(phase)) % (Math.PI * 2);
-        powerMotors(mult(VTurn, -Math.signum(phase) * AUTO_CONSTANT));
-        double target = (getHeading() + phase) % (Math.PI * 2);
-        while(angularDist(phase, target) > ANGLE_ETA){
-            telemetry.addLine("awaiting turn to " + target + ". Current : " + getHeading());
-            telemetry.addData("dist", angularDist(phase, target));
-            telemetry.update();
-        }
-        stopMotors();
     }
 
     /**
@@ -232,43 +185,12 @@ public final class Hardware{
         return (a - b) % (2 * Math.PI);
     }
 
-    /** @deprecated */
-    public int getEncoderDistance(){
-        if (driveMotors == null) return 0;
-        return driveMotors.w.getCurrentPosition();
-    }
-
-    /** @deprecated */
-    public void moveEncoderDistance(int targetDistance){
-        //Pro-tip: listen to no quarters by AB-XY/Chirpy Chips when you get stuck
-        resetMotors();
-        while(getEncoderDistance() < targetDistance){
-            logMotorPos();
-            powerMotors(AUTO_CONSTANT);
-        }
-        resetMotors();
-    }
-
     /**
      * @return the current heading of the imu, from -PI to PI
      * Returns 0 if IMU is not available
      */
     public float getHeading(){
-        if (imu == null) return 0;
         return imu.getRobotOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS).firstAngle;
-    }
-
-    public void rotateTime(int t, float d){
-        powerMotors(mult(VTurn, d * SLOW_MODE_CONSTANT));
-        sleep(t);
-    }
-    public void rotate(float to){
-        powerMotors(mult(VTurn, SLOW_MODE_CONSTANT * SLOW_MODE_CONSTANT));
-        while(angularDist(getHeading(), to) > ANGLE_ETA){
-            telemetry.addData("angledist", angularDist(getHeading(), to));
-            logHeading();
-        }
-        stopMotors();
     }
 
     /**
@@ -276,10 +198,6 @@ public final class Hardware{
      * @see Telemetry#addData(String, Object)
      */
     public void logMotorPos(){
-        if (driveMotors == null) {
-            telemetry.addData("posFR", "N/A - motors not initialized");
-            return;
-        }
         telemetry.addData("posFR", driveMotors.w.getCurrentPosition());
         telemetry.addData("posBR", driveMotors.x.getCurrentPosition());
         telemetry.addData("posFL", driveMotors.y.getCurrentPosition());
@@ -287,10 +205,6 @@ public final class Hardware{
     }
 
     public void logHeading(){
-        if (imu != null) {
-            telemetry.addData("theta", getHeading());
-        } else {
-            telemetry.addData("theta", "IMU not available");
-        }
+        telemetry.addData("theta", getHeading());
     }
 }
