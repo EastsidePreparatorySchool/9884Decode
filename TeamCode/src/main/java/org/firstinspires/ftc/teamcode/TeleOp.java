@@ -7,17 +7,19 @@ import static java.lang.Math.*;
 
 import android.annotation.SuppressLint;
 
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.lib.Coroutine;
 import org.firstinspires.ftc.teamcode.lib.Hardware;
 import org.firstinspires.ftc.teamcode.lib.Vector4;
 
 import java.util.*;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
-public class TeleOp extends LinearOpMode{
+public class TeleOp extends OpMode{
     Hardware robot = new Hardware();
+    Coroutine.Manager manager = new Coroutine.Manager();
 
     // State tracking
     private double spindexerTarget = 0.5; // Start at middle
@@ -26,70 +28,72 @@ public class TeleOp extends LinearOpMode{
     private boolean buttonXSequenceActive = false;
     private final ElapsedTime buttonXSequenceTimer = new ElapsedTime();
 
+    @Override
+    public void init(){
+        telemetry = robot.init(hardwareMap, telemetry);
+
+        telemetry.update();
+    }
+
     @SuppressLint("DefaultLocale")
     @Override
-    public void runOpMode(){
-        telemetry = robot.init(hardwareMap, telemetry);
-        
-        telemetry.update();
-        waitForStart();
+    public void loop(){
+        manager.step(getRuntime());
+        double lx = gamepad1.left_stick_x;
+        double ly = -gamepad1.left_stick_y;
+        double rx = gamepad1.right_stick_x;
 
-        while(opModeIsActive()){
-            double lx = gamepad1.left_stick_x;
-            double ly = -gamepad1.left_stick_y;
-            double rx = gamepad1.right_stick_x;
+        telemetry.addData("lx", lx);
+        telemetry.addData("ly", ly);
+        telemetry.addData("rx", rx);
 
-            telemetry.addData("lx", lx);
-            telemetry.addData("ly", ly);
-            telemetry.addData("rx", rx);
+        System.out.printf(Locale.ENGLISH, "%.2f %.2f %.2f", lx, ly, rx);
 
-            System.out.printf(Locale.ENGLISH, "%.2f %.2f %.2f", lx, ly, rx);
+        telemetry.addLine(VDrive.toString());
+        telemetry.addLine(mult(VDrive, 1).toString());
 
-            telemetry.addLine(VDrive.toString());
-            telemetry.addLine(mult(VDrive, 1).toString());
+        ArrayList<Vector4> powerList = new ArrayList<>();
+        powerList.add(mult(VDrive, ly));
+        powerList.add(mult(VStrafe, lx));
+        powerList.add(mult(VTurn, rx));
 
-            ArrayList<Vector4> powerList = new ArrayList<>();
-            powerList.add(mult(VDrive, ly));
-            powerList.add(mult(VStrafe, lx));
-            powerList.add(mult(VTurn, rx));
+        Vector4 power = powerList.stream().reduce((a, b) -> add(a, b)).get().mult(SPEED_CONSTANT);
+        //scale such that no motor is powered outside of [-1.0,1.0]
+        power.div(max(1, power.stream().max().orElse(0) / SPEED_CONSTANT));
+        power.mult(1 - 0.5 * gamepad1.right_trigger);
+        robot.powerMotors(power);
 
-            //noinspection OptionalGetWithoutIsPresent
-            Vector4 power = powerList.stream().reduce((a, b) -> add(a, b)).get().mult(SPEED_CONSTANT);
-            //scale such that no motor is powered outside of [-1.0,1.0]
-            power.div(max(1, power.stream().max().orElse(0) / SPEED_CONSTANT));
-            power.mult(1 - 0.5 * gamepad1.right_trigger);
-            robot.powerMotors(power);
+        telemetry.addData("power w", power.w);
+        telemetry.addData("power x", power.x);
+        telemetry.addData("power y", power.y);
+        telemetry.addData("power z", power.z);
+        robot.logHeading();
 
-            telemetry.addData("power w", power.w);
-            telemetry.addData("power x", power.x);
-            telemetry.addData("power y", power.y);
-            telemetry.addData("power z", power.z);
-            robot.logHeading();
+        robot.logMotorPos();
 
-            robot.logMotorPos();
+        handleButtonControls();
 
-            handleButtonControls();
-
-            telemetry.addLine("--- Driver 2 Controls ---");
-            telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
-            telemetry.addData("GP2 LB (Turret+Lift)", gamepad2.left_bumper);
-            telemetry.addData("GP2 A (140° CW)", gamepad2.a);
-            telemetry.addData("GP2 B (60° CW)", gamepad2.b);
-            telemetry.addData("GP2 Y (60° CCW)", gamepad2.y);
-            telemetry.addData("GP2 X (135° CCW)", gamepad2.x);
-            telemetry.addData("Spindexer Pos", String.format("%.3f", spindexerTarget));
-            telemetry.addLine("");
-            telemetry.addLine("--- Hardware Status ---");
-            telemetry.addData("Spindexer", robot.spindexer != null ? "OK" : "NULL");
-            telemetry.addData("Turret", robot.turretFlywheel != null ? "OK" : "NULL");
-            telemetry.addData("Lift", robot.lift != null ? "OK" : "NULL");
-            if (buttonXSequenceActive) {
-                telemetry.addData("Turret+Lift Sequence", "Active - " + String.format("%.1f", buttonXSequenceTimer.seconds()) + "s");
-            }
-            
-            telemetry.update();
+        telemetry.addLine("--- Driver 2 Controls ---");
+        telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
+        telemetry.addData("GP2 LB (Turret+Lift)", gamepad2.left_bumper);
+        telemetry.addData("GP2 A (140° CW)", gamepad2.a);
+        telemetry.addData("GP2 B (60° CW)", gamepad2.b);
+        telemetry.addData("GP2 Y (60° CCW)", gamepad2.y);
+        telemetry.addData("GP2 X (135° CCW)", gamepad2.x);
+        telemetry.addData("Spindexer Pos", String.format("%.3f", spindexerTarget));
+        telemetry.addLine("");
+        telemetry.addLine("--- Hardware Status ---");
+        telemetry.addData("Spindexer", robot.spindexer != null ? "OK" : "NULL");
+        telemetry.addData("Turret", robot.turretFlywheel != null ? "OK" : "NULL");
+        telemetry.addData("Lift", robot.lift != null ? "OK" : "NULL");
+        if (buttonXSequenceActive) {
+            telemetry.addData("Turret+Lift Sequence", "Active - " + String.format("%.1f", buttonXSequenceTimer.seconds()) + "s");
         }
 
+        telemetry.update();
+    }
+    @Override
+    public void stop(){
         robot.turretFlywheel.setPower(0);
         robot.lift.setPower(0);
     }
