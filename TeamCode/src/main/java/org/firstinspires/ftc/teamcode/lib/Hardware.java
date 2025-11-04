@@ -58,6 +58,7 @@ public final class Hardware{
     public Telemetry telemetry;
     public Quad<DcMotor> driveMotors;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     public BHI260IMU imu;
     public Servo spindexer;
     public CRServo lift;
@@ -70,6 +71,10 @@ public final class Hardware{
 =======
     public BNO055IMU imu; //internal measurement unit, measures angle in which the motors are turning
 
+=======
+    public BNO055IMU imu; //internal measurement unit, measures angle in which the motors are turning
+
+>>>>>>> Stashed changes
     public static double SPEED_CONSTANT     = 0.80; //sets speed to 80 percent of max
     public static double AUTO_CONSTANT      = 0.50; //in autonomous the robot needs to go slower, so 50%
     public static double SLOW_MODE_CONSTANT = 0.10;
@@ -80,6 +85,9 @@ public final class Hardware{
     public static final int ACTUATOR_SAFETY_BUFFER = 150;
     public static final int ACTUATOR_MAX_POS = -6100;
     public static final double ANGLE_ETA = Math.PI / 16; //the closest the angles of the motors need to be to be good >:)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
     //in teleop code already
@@ -92,6 +100,7 @@ public final class Hardware{
      * @return the new {@link MultipleTelemetry} instance, recommended to reassign telemetry
      */
     public Telemetry init(HardwareMap hardwareMap, Telemetry telemetry){return init(hardwareMap, telemetry, false);}
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
     public Telemetry init(HardwareMap hardwareMap, Telemetry telemetry, boolean auto){
         imu = hardwareMap.get(BHI260IMU.class, "imu");
@@ -120,12 +129,28 @@ public final class Hardware{
         this.telemetry.addLine("Transmission Interval:" + telemetry.getMsTransmissionInterval()); //ideally should print 50
         this.telemetry.update(); //update telemetry
 
+=======
+    public Telemetry init(HardwareMap hardwareMap, Telemetry telemetry, boolean auto){ //called when pressing init in teleop
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        imu = hardwareMap.get(BNO055IMU.class, "imu"); //creating an IMU class
+        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+        parameters.angleUnit = BNO055IMU.AngleUnit.RADIANS; //sets measurement of the IMU to radians
+        imu.initialize(parameters); //initializing the imu
+
+        this.telemetry = telemetry;
+        this.telemetry.setMsTransmissionInterval(50); //how often the robot controller sends data to the driver station in milliseconds
+        this.telemetry.addLine("Initialization Status Successful");
+        this.telemetry.addLine("Transmission Interval:" + telemetry.getMsTransmissionInterval()); //ideally should print 50
+        this.telemetry.update(); //update telemetry
+
+>>>>>>> Stashed changes
         //gets all motors
         DcMotor driveMotorFL = hardwareMap.dcMotor.get("DriveFL"),
                 driveMotorFR = hardwareMap.dcMotor.get("DriveFR"),
                 driveMotorBL = hardwareMap.dcMotor.get("DriveBL"),
                 driveMotorBR = hardwareMap.dcMotor.get("DriveBR");
 >>>>>>> Stashed changes
+
 
 
         driveMotors = of(driveMotorFL, driveMotorFR, driveMotorBL, driveMotorBR);
