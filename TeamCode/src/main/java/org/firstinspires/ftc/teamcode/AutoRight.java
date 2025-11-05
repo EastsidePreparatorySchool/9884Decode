@@ -15,7 +15,7 @@ public class AutoRight extends LinearOpMode{
 
         waitForStart();
 
-        robot.moveTime(Hardware.VStrafe, Hardware.AUTO_CONSTANT, 1000);
-        robot.moveTime(Hardware.VDrive, Hardware.AUTO_CONSTANT, 10_000);
+//        robot.moveTime(Hardware.VStrafe, Hardware.AUTO_CONSTANT, 1000);
+//        robot.moveTime(Hardware.VDrive, Hardware.AUTO_CONSTANT, 10_000);
     }
 }

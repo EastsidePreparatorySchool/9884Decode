@@ -78,19 +78,19 @@ public abstract class Coroutine{
 
                 } else if (o instanceof Termination){
                     end(routine);
-                    return;
+                    continue;
                 } else if (o instanceof SuspendDelay){
                     SuspendDelay d = (SuspendDelay) o;
                     if (d.startTime == null){
                         d.startTime = time;
-                        return; //no matter what this will cause a 1 frame delay
+                        continue; //no matter what this will cause a 1 frame delay
                     }
                     if (!d.done(time)){
-                        return;
+                        continue;
                     }
                 } else if (o instanceof SuspendCondition){
                     SuspendCondition d = (SuspendCondition) o;
-                    if (!d.done()) return;
+                    if (!d.done()) continue;
                 }
 
                 routine.latest = routine.loop();

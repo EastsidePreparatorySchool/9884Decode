@@ -67,17 +67,17 @@ public class TeleOp extends OpMode{
                     spindexerTarget = SpindexerPosition.A_IN;
                     robot.setSpindexer(spindexerTarget);
                     if (increment) state = 1;
-                    return Coroutine.Yield.delay(SPINDEXER_ROTATION_TIME);
+                    return null;
                 case 1:
                     spindexerTarget = SpindexerPosition.B_IN;
                     robot.setSpindexer(spindexerTarget);
                     if (increment) state = 2;
-                    return Coroutine.Yield.delay(SPINDEXER_ROTATION_TIME);
+                    return null;
                 case 2:
                     spindexerTarget = SpindexerPosition.C_IN;
                     robot.setSpindexer(spindexerTarget);
                     if (increment) state = 3;
-                    return Coroutine.Yield.delay(SPINDEXER_ROTATION_TIME);
+                    return null;
                 case 3:
                     robot.revTurret();
                     spindexerTarget = SpindexerPosition.B_OUT;

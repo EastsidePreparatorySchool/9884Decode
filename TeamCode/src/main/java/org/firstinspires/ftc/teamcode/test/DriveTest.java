@@ -21,7 +21,7 @@ public class DriveTest extends LinearOpMode{
             telemetry.addData("Motor", hardwareMap.getNamesOf(m).stream().findFirst().get());
             telemetry.update();
             m.setPower(1);
-            robot.sleep(1000);
+            sleep(1000);
             m.setPower(0);
         }
     }
