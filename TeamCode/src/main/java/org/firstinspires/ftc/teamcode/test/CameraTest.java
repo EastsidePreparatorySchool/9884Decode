@@ -72,15 +72,14 @@ public class CameraTest extends LinearOpMode {
         portal = new VisionPortal.Builder()
                 .setCamera(BuiltinCameraDirection.BACK)
 
-//                .addProcessor(new ChainedVisionProcessor.Builder()
-//                        .addProcessor(processor)
-//                        .addProcessor(streamer)
-//                        .build())
-                .addProcessor(processor)
-                .addProcessor(streamer)
+                .addProcessor(new ChainedVisionProcessor.Builder()
+                        .addProcessor(processor)
+                        .addProcessor(streamer)
+                        .build())
+//                .addProcessor(processor)
+//                .addProcessor(streamer)
                 .setAutoStartStreamOnBuild(true)
                 .build();
-        streamer.setInternalSource(portal);
     }
 
     private void buildVisionEasy(){
@@ -98,7 +97,7 @@ public class CameraTest extends LinearOpMode {
             if (detection.metadata != null) {
                 telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
 
-                if (!detection.metadata.name.contains("Obelisk"))
+                //if (!detection.metadata.name.contains("Obelisk"))
                 {
                     telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)",
                             detection.robotPose.getPosition().x,
