@@ -42,13 +42,10 @@ public class CameraTest extends LinearOpMode {
     public static double campitch = 0;
     public static double camroll = 0;
 
-    public static Telemetry t;
-
     @Override
     public void runOpMode() {
         FtcDashboard instance = FtcDashboard.getInstance();
         telemetry = new MultipleTelemetry(telemetry, instance.getTelemetry());
-        t = telemetry;
 
         telemetry.addData("ver", Build.VERSION.SDK);
 

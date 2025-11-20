@@ -85,16 +85,8 @@ public class ChainedVisionProcessor implements VisionProcessor{
 
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext){
-        CameraTest.t.addData("onscreenWidth", onscreenWidth);
-        CameraTest.t.addData("onscreenHeight", onscreenHeight);
-        CameraTest.t.addData("scaleBmpPxCanvasPx", scaleBmpPxToCanvasPx);
-        CameraTest.t.addData("scaleCanvasDensity", scaleCanvasDensity);
         FrameData data = (FrameData) userContext;
         Rect clipping = canvas.getClipBounds();
-        CameraTest.t.addData("frameW", data.frame.getWidth());
-        CameraTest.t.addData("frameH", data.frame.getHeight());
-        CameraTest.t.addData("rect", clipping.toShortString());
-        CameraTest.t.update();
 
         Bitmap bitmap = Bitmap.createBitmap(onscreenWidth, onscreenHeight, data.frame.getConfig());
         canvas = ExposedCanvas.expose(canvas, bitmap);
