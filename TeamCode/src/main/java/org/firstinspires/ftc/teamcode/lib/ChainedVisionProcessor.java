@@ -2,11 +2,13 @@ package org.firstinspires.ftc.teamcode.lib;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
 
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
+import org.firstinspires.ftc.teamcode.test.CameraTest;
 import org.firstinspires.ftc.vision.VisionProcessor;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -83,8 +85,34 @@ public class ChainedVisionProcessor implements VisionProcessor{
 
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext){
+        CameraTest.t.addData("onscreenWidth", onscreenWidth);
+        CameraTest.t.addData("onscreenHeight", onscreenHeight);
+        CameraTest.t.addData("scaleBmpPxCanvasPx", scaleBmpPxToCanvasPx);
+        CameraTest.t.addData("scaleCanvasDensity", scaleCanvasDensity);
         FrameData data = (FrameData) userContext;
-        canvas = ExposedCanvas.expose(canvas, data.frame);
+        Rect clipping = canvas.getClipBounds();
+        CameraTest.t.addData("frameW", data.frame.getWidth());
+        CameraTest.t.addData("frameH", data.frame.getHeight());
+        CameraTest.t.addData("rect", clipping.toShortString());
+        CameraTest.t.update();
+
+        Bitmap bitmap = Bitmap.createBitmap(onscreenWidth, onscreenHeight, data.frame.getConfig());
+        canvas = ExposedCanvas.expose(canvas, bitmap);
+        //L T R B
+        //[1,-440][494,808]
+        //
+
+        float top = 0;
+        float left = 0;
+        float right = clipping.right - Math.abs(clipping.left);
+        float bottom = clipping.bottom - Math.abs(clipping.top);
+
+        canvas.drawBitmapMesh(data.frame, 1, 1, new float[]{
+                left, top,
+                right, top,
+                left, bottom,
+                right, bottom
+        }, 0, null, 0, null);
         Object[] ctx = data.contexts;
         for(int i = 0; i < _processors.size(); i++){
             _processors.get(i).onDrawFrame(canvas, onscreenWidth, onscreenHeight, scaleBmpPxToCanvasPx, scaleCanvasDensity, ctx[i]);

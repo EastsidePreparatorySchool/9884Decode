@@ -35,8 +35,12 @@ public class CameraTest extends LinearOpMode {
     private VisionPortal portal;
     private CameraStreamProcessor streamer;
 
-    private static final Position camPos = new Position(DistanceUnit.MM, 0, 0, 0, 0);
-    private static final YawPitchRollAngles camRot = new YawPitchRollAngles(AngleUnit.DEGREES, 0, -90, 0, 0);
+    public static double camx = 0;
+    public static double camy = 0;
+    public static double camz = 0;
+    public static double camyaw = 0;
+    public static double campitch = 0;
+    public static double camroll = 0;
 
     public static Telemetry t;
 
@@ -64,7 +68,7 @@ public class CameraTest extends LinearOpMode {
                 .setDrawAxes(true)
                 .setDrawTagOutline(true)
                 .setOutputUnits(DistanceUnit.CM, AngleUnit.DEGREES)
-                .setCameraPose(camPos, camRot)
+                .setCameraPose(new Position(DistanceUnit.MM, camx, camy, camz, 0), new YawPitchRollAngles(AngleUnit.DEGREES, camyaw, campitch, camroll, 0))
                 .build();
 
         streamer = new CameraStreamProcessor();
