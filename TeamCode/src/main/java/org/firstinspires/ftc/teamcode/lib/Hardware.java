@@ -29,10 +29,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 @Config // ftc dash: 192.168.43.1:8080/dash
 public final class Hardware{
 
-    public static final double SPINDEXER_DEGREE_RANGE = 300.0;
+    public static final double SPINDEXER_DEGREE_RANGE = 1800.0;
     public static final double SPINDEXER_ROTATION_TIME = 0.3;
-    public static final double LIFT_UP_TIME = 3.5;
-    public static final double LIFT_DOWN_TIME = 2.0;
+    public static double FLICKER_REST_POSITION = 0;
+    public static double FLICKER_FLICK_POSITION = 0.5;
+    public static double FLICKER_FLICK_TIME = 0.3;
     public static final double TURRET_REV_UP_TIME = 1.0;
     public static final double TURRET_REV_DOWN_TIME = 1.0;
 
@@ -59,10 +60,13 @@ public final class Hardware{
     public Quad<DcMotor> driveMotors;
     public BHI260IMU imu;
     public Servo spindexer;
-    public CRServo lift;
+    //public CRServo lift;
     //public AnalogInput liftEncoder;
     public DcMotor turretFlywheel;
-    private ServoInfo liftInfo;
+    //private ServoInfo liftInfo;
+    public Servo flicker;
+    public CRServo turret;
+
 
     public static double SPEED_CONSTANT     = 1.00;
     public static double AUTO_CONSTANT      = 0.50;
@@ -104,9 +108,11 @@ public final class Hardware{
         spindexer.scaleRange(0.0, 1.0);
         setSpindexer(0);
 
-        lift = hardwareMap.crservo.get("lift");
-        liftInfo = new ServoInfo(lift);
+//        lift = hardwareMap.crservo.get("lift");
+//        liftInfo = new ServoInfo(lift);
 
+        flicker = hardwareMap.servo.get("flicker");
+        turret = hardwareMap.crservo.get("turret");
         turretFlywheel = hardwareMap.dcMotor.get("turretFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
@@ -133,9 +139,17 @@ public final class Hardware{
         spindexer.setPosition(degrees / SPINDEXER_DEGREE_RANGE);
     }
 
-    public double getLiftPos(){
-        return liftInfo.getPosition();
+    public void flick(){
+        flicker.setPosition(FLICKER_FLICK_POSITION);
     }
+
+    public void unflick(){
+        flicker.setPosition(FLICKER_REST_POSITION);
+    }
+
+//    public double getLiftPos(){
+//        return liftInfo.getPosition();
+//    }
 
     /**
      * Applies powers to each drive motor based on the components of power

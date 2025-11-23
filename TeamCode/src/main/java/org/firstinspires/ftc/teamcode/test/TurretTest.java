@@ -20,9 +20,9 @@ public class TurretTest extends LinearOpMode{
         telemetry = robot.init(hardwareMap, telemetry);
         waitForStart();
         while(opModeIsActive()){
-            telemetry.addData("liftpos", robot.getLiftPos());
+            //telemetry.addData("liftpos", robot.getLiftPos());
             robot.setSpindexer(spindexerPosition);
-            robot.lift.setPower(liftPower);
+            //robot.lift.setPower(liftPower);
             robot.turretFlywheel.setPower(turretPower);
         }
     }

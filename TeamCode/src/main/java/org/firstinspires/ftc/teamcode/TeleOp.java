@@ -9,18 +9,26 @@ import android.annotation.SuppressLint;
 
 import androidx.annotation.Nullable;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
+import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.lib.Coroutine;
 import org.firstinspires.ftc.teamcode.lib.Hardware;
 import org.firstinspires.ftc.teamcode.lib.Vector4;
+import org.firstinspires.ftc.teamcode.lib.VisionRoutine;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 import java.util.*;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
 public class TeleOp extends OpMode{
+
+
     Hardware robot = new Hardware();
     Coroutine.Manager manager = new Coroutine.Manager();
+    VisionRoutine vision;
 
     private int spindexerTarget = SpindexerPosition.A_IN;
 
@@ -29,8 +37,18 @@ public class TeleOp extends OpMode{
         telemetry = robot.init(hardwareMap, telemetry);
         telemetry.update();
 
+//        vision = new VisionRoutine.Builder()
+//                .setCamera(BuiltinCameraDirection.BACK)
+//                .setPosition(0, 0, 0)
+//                .setRotation(0, 0, 0)
+//                .enableStreaming()
+//                .Build();
+
         manager.start(new DriveTrainRoutine());
         manager.start(new SpindexerRoutine());
+        //manager.start(vision);
+        manager.start(new TurretRoutine());
+        FtcDashboard.getInstance().startCameraStream(vision, 30);
 
         telemetry.addLine("--- Driver 2 Controls ---");
         telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
@@ -49,8 +67,40 @@ public class TeleOp extends OpMode{
     }
     @Override
     public void stop(){
+        FtcDashboard.getInstance().stopCameraStream();
         robot.turretFlywheel.setPower(0);
-        robot.lift.setPower(0);
+        robot.turret.setPower(0);
+        vision.close();
+    }
+
+    private class TurretRoutine extends Coroutine{
+        @Override
+        public Object loop(){
+            for (AprilTagDetection detection : vision.getDetections()) {
+                if (detection.metadata != null) {
+                    telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
+
+                    //if (!detection.metadata.name.contains("Obelisk"))
+                    {
+                        telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)",
+                                detection.robotPose.getPosition().x,
+                                detection.robotPose.getPosition().y,
+                                detection.robotPose.getPosition().z));
+                        telemetry.addLine(String.format("PRY %6.1f %6.1f %6.1f  (deg)",
+                                detection.robotPose.getOrientation().getPitch(AngleUnit.DEGREES),
+                                detection.robotPose.getOrientation().getRoll(AngleUnit.DEGREES),
+                                detection.robotPose.getOrientation().getYaw(AngleUnit.DEGREES)));
+                    }
+                } else {
+                    telemetry.addLine(String.format("\n==== (ID %d) Unknown", detection.id));
+                    telemetry.addLine(String.format("Center %6.0f %6.0f   (pixels)", detection.center.x, detection.center.y));
+                }
+            }
+            telemetry.addLine("\nkey:\nXYZ = X (Right), Y (Forward), Z (Up) dist.");
+            telemetry.addLine("PRY = Pitch, Roll & Yaw (XYZ Rotation)");
+
+            return null;
+        }
     }
 
     private class SpindexerRoutine extends Coroutine{
@@ -82,41 +132,38 @@ public class TeleOp extends OpMode{
                     robot.revTurret();
                     spindexerTarget = SpindexerPosition.B_OUT;
                     robot.setSpindexer(spindexerTarget);
-                    robot.lift.setPower(1.0);
+                    robot.flick();
                     state = 4;
-                    return Coroutine.Yield.delay(LIFT_UP_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 4:
-                    robot.lift.setPower(-1);
+                    robot.unflick();
                     state = 5;
-                    return Coroutine.Yield.delay(LIFT_DOWN_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 5:
-                    robot.lift.setPower(0);
                     robot.setSpindexer(SpindexerPosition.A_OUT);
                     state = 6;
                     return Coroutine.Yield.delay(SPINDEXER_ROTATION_TIME);
                 case 6:
-                    robot.lift.setPower(1.0);
+                    robot.flick();
                     state = 7;
-                    return Coroutine.Yield.delay(LIFT_UP_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 7:
-                    robot.lift.setPower(-1);
+                    robot.unflick();
                     state = 8;
-                    return Coroutine.Yield.delay(LIFT_DOWN_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 8:
-                    robot.lift.setPower(0);
                     robot.setSpindexer(SpindexerPosition.C_OUT);
                     state = 9;
                     return Coroutine.Yield.delay(SPINDEXER_ROTATION_TIME);
                 case 9:
-                    robot.lift.setPower(1.0);
+                    robot.flick();
                     state = 10;
-                    return Coroutine.Yield.delay(LIFT_UP_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 10:
-                    robot.lift.setPower(-1);
+                    robot.unflick();
                     state = 11;
-                    return Coroutine.Yield.delay(LIFT_DOWN_TIME);
+                    return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
                 case 11:
-                    robot.lift.setPower(0);
                     state = 0;
                     robot.endRevTurret();
                     return null;

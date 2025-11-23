@@ -91,6 +91,8 @@ public abstract class Coroutine{
                 } else if (o instanceof SuspendCondition){
                     SuspendCondition d = (SuspendCondition) o;
                     if (!d.done()) continue;
+                } else{
+
                 }
 
                 routine.latest = routine.loop();
