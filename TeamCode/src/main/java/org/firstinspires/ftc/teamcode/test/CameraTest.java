@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.test;
 
 import android.annotation.SuppressLint;
+import android.graphics.Color;
 import android.os.Build;
 
 import com.acmerobotics.dashboard.FtcDashboard;
@@ -9,14 +10,17 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.lib.CameraStreamProcessor;
-import org.firstinspires.ftc.teamcode.lib.ChainedVisionProcessor;
+import org.firstinspires.ftc.robotcore.internal.camera.names.WebcamNameImpl;
+import org.firstinspires.ftc.teamcode.lib.vision.CameraStreamProcessor;
+import org.firstinspires.ftc.teamcode.lib.vision.ChainedVisionProcessor;
+import org.firstinspires.ftc.teamcode.lib.vision.ColorProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -28,12 +32,19 @@ import java.util.List;
  * https://ftc-docs.firstinspires.org/apriltag-detection-values
  */
 @Config
-@TeleOp(name = "April Tag", group = "9884")
+@TeleOp(name = "Vision Test", group = "9884")
 public class CameraTest extends LinearOpMode {
 
     private AprilTagProcessor processor;
     private VisionPortal portal;
     private CameraStreamProcessor streamer;
+    private ColorProcessor colorProcessor;
+    private ChainedVisionProcessor chainedProcessor;
+
+    private WebcamName aprilCam;
+    private WebcamName colorCam;
+
+    boolean isInColorMode = false;
 
     public static double camx = 0;
     public static double camy = 0;
@@ -47,7 +58,8 @@ public class CameraTest extends LinearOpMode {
         FtcDashboard instance = FtcDashboard.getInstance();
         telemetry = new MultipleTelemetry(telemetry, instance.getTelemetry());
 
-        telemetry.addData("ver", Build.VERSION.SDK);
+        aprilCam = hardwareMap.get(WebcamName.class, "Webcam 1");
+        colorCam = hardwareMap.get(WebcamName.class, "Webcam 2");
 
         buildVision();
         instance.startCameraStream(streamer, 30);
@@ -55,12 +67,22 @@ public class CameraTest extends LinearOpMode {
         while (opModeIsActive()) {
             telemetryAprilTag();
             sleep(100);
+            telemetry.addData("color", String.format("%08X", colorProcessor.getColor()));
+
+            if (gamepad1.aWasPressed()){
+                isInColorMode = !isInColorMode;
+                portal.setProcessorEnabled(chainedProcessor, !isInColorMode);
+                portal.setProcessorEnabled(colorProcessor, isInColorMode);
+                portal.setActiveCamera(isInColorMode ? colorCam : aprilCam);
+            }
+
             telemetry.update();
         }
         portal.close();
     }
 
     private void buildVision() {
+
         processor = new AprilTagProcessor.Builder()
                 .setDrawAxes(true)
                 .setDrawTagOutline(true)
@@ -70,29 +92,27 @@ public class CameraTest extends LinearOpMode {
 
         streamer = new CameraStreamProcessor();
 
-        portal = new VisionPortal.Builder()
-                .setCamera(BuiltinCameraDirection.BACK)
+        colorProcessor = new ColorProcessor();
 
-                .addProcessor(new ChainedVisionProcessor.Builder()
-                        .addProcessor(processor)
-                        .addProcessor(streamer)
-                        .build())
-//                .addProcessor(processor)
-//                .addProcessor(streamer)
+        chainedProcessor = new ChainedVisionProcessor.Builder()
+                .addProcessor(processor)
+                .addProcessor(streamer)
+                .build();
+
+        portal = new VisionPortal.Builder()
+                .setCamera(ClassFactory.getInstance()
+                        .getCameraManager().nameForSwitchableCamera(aprilCam, colorCam))
+                .addProcessor(chainedProcessor)
+                .addProcessor(colorProcessor)
                 .setAutoStartStreamOnBuild(true)
                 .build();
-    }
-
-    private void buildVisionEasy(){
-        processor = AprilTagProcessor.easyCreateWithDefaults();
-        portal = VisionPortal.easyCreateWithDefaults(BuiltinCameraDirection.BACK, processor);
+        portal.setProcessorEnabled(colorProcessor, false);
     }
 
     @SuppressLint("DefaultLocale")
     private void telemetryAprilTag() {
 
         List<AprilTagDetection> currentDetections = processor.getDetections();
-        telemetry.addData("# AprilTags Detected", currentDetections.size());
 
         for (AprilTagDetection detection : currentDetections) {
             if (detection.metadata != null) {

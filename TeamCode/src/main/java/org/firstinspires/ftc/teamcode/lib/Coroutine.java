@@ -29,6 +29,10 @@ public abstract class Coroutine{
         }
     }
 
+    public final boolean isTerminated(){
+        return latest instanceof Termination;
+    }
+
     private static class Termination {
 
     }

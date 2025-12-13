@@ -1,13 +1,9 @@
-package org.firstinspires.ftc.teamcode.lib;
+package org.firstinspires.ftc.teamcode.lib.vision;
 
 import android.graphics.*;
-import android.graphics.fonts.Font;
-import android.graphics.text.MeasuredText;
-import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 /**
  Allows any draw calls to be applied to both this canvas, and a secondary canvas.

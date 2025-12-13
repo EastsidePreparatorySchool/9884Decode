@@ -1,42 +1,61 @@
-package org.firstinspires.ftc.teamcode.lib;
+package org.firstinspires.ftc.teamcode.lib.vision;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 
-import androidx.annotation.NonNull;
+import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.function.Consumer;
 import org.firstinspires.ftc.robotcore.external.function.Continuation;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
+import org.firstinspires.ftc.teamcode.lib.Coroutine;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 public final class VisionRoutine extends Coroutine implements CameraStreamSource{
     private final AprilTagProcessor processor;
     private final VisionPortal portal;
     private final CameraStreamProcessor streamer;
+    private final ColorProcessor color;
+    private final ChainedVisionProcessor chained;
+
+    private final WebcamName aprilCam, colorCam;
+
+    public enum CameraState{
+        AprilTagCamera,
+        ColorCamera
+    }
 
     @Nullable
     private ArrayList<AprilTagDetection> detections = null;
 
-    private VisionRoutine(AprilTagProcessor _processor, VisionPortal _portal, CameraStreamProcessor _streamer){
+    private VisionRoutine(AprilTagProcessor _processor, VisionPortal _portal, ChainedVisionProcessor _chained, CameraStreamProcessor _streamer, ColorProcessor _color, WebcamName _aprilCam, WebcamName _colorCam){
         processor = _processor;
         portal = _portal;
+        chained = _chained;
         streamer = _streamer;
+        color = _color;
+        aprilCam = _aprilCam;
+        colorCam = _colorCam;
+
+        portal.setProcessorEnabled(color, false);
     }
 
     @Override
@@ -55,13 +74,27 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
         return detections == null ? List.of() : Collections.unmodifiableList(detections);
     }
 
+    @ColorInt
+    public int getColor(){
+        return color.getColor();
+    }
+
+    public void setCamera(CameraState camera){
+        portal.setProcessorEnabled(chained, camera == CameraState.AprilTagCamera);
+        portal.setProcessorEnabled(color, camera == CameraState.ColorCamera);
+        portal.setActiveCamera(camera == CameraState.AprilTagCamera ? aprilCam : colorCam);
+    }
+
     public static class Builder{
-        private boolean streamToDash = false;
+        private boolean autoStreamToDashAfterBuild = false;
+        private double fps;
         private Position position = new Position();
         private YawPitchRollAngles rotation = new YawPitchRollAngles(AngleUnit.DEGREES, 0, 0, 0, 0);
 
         private final AprilTagProcessor.Builder processor;
         private final VisionPortal.Builder portal;
+
+        private WebcamName aprilCam, colorCam;
 
         public Builder(){
             processor = new AprilTagProcessor.Builder()
@@ -84,42 +117,48 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
             return this;
         }
 
-        /// Fixes streaming to FtcDash using black magic
-        public Builder enableStreaming(){
-            streamToDash = true;
+        public Builder autoStreamToDashOnBuild(double fps){
+            autoStreamToDashAfterBuild = true;
+            this.fps = fps;
+            return this;
+        }
+
+        public Builder setCameras(WebcamName aprilCam, WebcamName colorCam){
+            this.aprilCam = aprilCam;
+            this.colorCam = colorCam;
+            portal.setCamera(ClassFactory.getInstance()
+                    .getCameraManager().nameForSwitchableCamera(aprilCam, colorCam));
+            return this;
+        }
+
+        public VisionRoutine build(){
             processor.setDrawAxes(true)
                     .setDrawTagOutline(true)
                     .setDrawTagID(true);
-            portal.setAutoStartStreamOnBuild(true);
-            return this;
-        }
 
-        public Builder setCamera(BuiltinCameraDirection cam){
-            portal.setCamera(cam);
-            return this;
-        }
-
-        public Builder setCamera(CameraName cam){
-            portal.setCamera(cam);
-            return this;
-        }
-
-        public VisionRoutine Build(){
             AprilTagProcessor builtProc = processor.build();
-            VisionPortal builtPortal;
-            CameraStreamProcessor streamer = null;
-            if (streamToDash){
-                streamer = new CameraStreamProcessor();
-                builtPortal = portal.addProcessor(
-                        new ChainedVisionProcessor.Builder()
-                            .addProcessors(builtProc, streamer)
-                            .build()
-                        ).build();
 
-            } else{
-                builtPortal = portal.addProcessor(builtProc).build();
-            }
-            return new VisionRoutine(builtProc, builtPortal, streamer);
+            CameraStreamProcessor streamer = new CameraStreamProcessor();
+            ChainedVisionProcessor chained = new ChainedVisionProcessor.Builder()
+                    .addProcessors(builtProc, streamer)
+                    .build();
+            ColorProcessor color = new ColorProcessor();
+
+            VisionRoutine built = new VisionRoutine(
+                    builtProc,
+                    portal.addProcessor(chained)
+                            .addProcessor(color)
+                            .setAutoStartStreamOnBuild(true)
+                        .build(),
+                    chained,
+                    streamer,
+                    color,
+                    aprilCam,
+                    colorCam);
+
+            if (autoStreamToDashAfterBuild)
+                FtcDashboard.getInstance().startCameraStream(built, fps);
+            return built;
         }
     }
 

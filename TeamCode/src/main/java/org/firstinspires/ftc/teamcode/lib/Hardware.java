@@ -29,7 +29,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 @Config // ftc dash: 192.168.43.1:8080/dash
 public final class Hardware{
 
-    public static final double SPINDEXER_DEGREE_RANGE = 1800.0;
+    public static final double SPINDEXER_DEGREE_RANGE = 330;
     public static final double SPINDEXER_ROTATION_TIME = 0.3;
     public static double FLICKER_REST_POSITION = 0;
     public static double FLICKER_FLICK_POSITION = 0.5;
@@ -60,12 +60,11 @@ public final class Hardware{
     public Quad<DcMotor> driveMotors;
     public BHI260IMU imu;
     public Servo spindexer;
-    //public CRServo lift;
-    //public AnalogInput liftEncoder;
     public DcMotor turretFlywheel;
-    //private ServoInfo liftInfo;
+    public DcMotor intakeFlywheel;
+    public DcMotor turretBase;
     public Servo flicker;
-    public CRServo turret;
+    public Servo hood;
 
 
     public static double SPEED_CONSTANT     = 1.00;
@@ -108,13 +107,16 @@ public final class Hardware{
         spindexer.scaleRange(0.0, 1.0);
         setSpindexer(0);
 
-//        lift = hardwareMap.crservo.get("lift");
-//        liftInfo = new ServoInfo(lift);
-
         flicker = hardwareMap.servo.get("flicker");
-        turret = hardwareMap.crservo.get("turret");
+        flicker.scaleRange(0.8, 1);
+        unflick();
+
         turretFlywheel = hardwareMap.dcMotor.get("turretFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        hood = hardwareMap.servo.get("hood");
+        intakeFlywheel = hardwareMap.dcMotor.get("intakeFly");
+        turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        turretBase = hardwareMap.dcMotor.get("turretBase");
 
         return this.telemetry;
     }
@@ -140,11 +142,11 @@ public final class Hardware{
     }
 
     public void flick(){
-        flicker.setPosition(FLICKER_FLICK_POSITION);
+        flicker.setPosition(0);
     }
 
     public void unflick(){
-        flicker.setPosition(FLICKER_REST_POSITION);
+        flicker.setPosition(1);
     }
 
 //    public double getLiftPos(){

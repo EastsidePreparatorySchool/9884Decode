@@ -10,21 +10,24 @@ import android.annotation.SuppressLint;
 import androidx.annotation.Nullable;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.lib.Coroutine;
 import org.firstinspires.ftc.teamcode.lib.Hardware;
 import org.firstinspires.ftc.teamcode.lib.Vector4;
-import org.firstinspires.ftc.teamcode.lib.VisionRoutine;
+import org.firstinspires.ftc.teamcode.lib.vision.VisionRoutine;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 import java.util.*;
 
+@Config
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
 public class TeleOp extends OpMode{
-
 
     Hardware robot = new Hardware();
     Coroutine.Manager manager = new Coroutine.Manager();
@@ -32,23 +35,25 @@ public class TeleOp extends OpMode{
 
     private int spindexerTarget = SpindexerPosition.A_IN;
 
+    public static boolean enableColor = false;
+    public static boolean enableApril = false;
+
     @Override
     public void init(){
         telemetry = robot.init(hardwareMap, telemetry);
         telemetry.update();
 
-//        vision = new VisionRoutine.Builder()
-//                .setCamera(BuiltinCameraDirection.BACK)
-//                .setPosition(0, 0, 0)
-//                .setRotation(0, 0, 0)
-//                .enableStreaming()
-//                .Build();
+        vision = new VisionRoutine.Builder()
+                .setCameras(hardwareMap.get(WebcamName.class, "Webcam 1"), hardwareMap.get(WebcamName.class, "Webcam 2"))
+                .setPosition(0, 0, 0)
+                .setRotation(0, 0, 0)
+                .autoStreamToDashOnBuild(30)
+                .build();
 
         manager.start(new DriveTrainRoutine());
         manager.start(new SpindexerRoutine());
-        //manager.start(vision);
+        manager.start(vision);
         manager.start(new TurretRoutine());
-        FtcDashboard.getInstance().startCameraStream(vision, 30);
 
         telemetry.addLine("--- Driver 2 Controls ---");
         telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
@@ -62,6 +67,14 @@ public class TeleOp extends OpMode{
     @SuppressLint("DefaultLocale")
     @Override
     public void loop(){
+        if (enableColor){
+            vision.setCamera(VisionRoutine.CameraState.ColorCamera);
+            enableColor = false;
+        }
+        if (enableApril){
+            vision.setCamera(VisionRoutine.CameraState.AprilTagCamera);
+            enableApril = false;
+        }
         manager.loop(getRuntime());
         telemetry.update();
     }
@@ -69,7 +82,7 @@ public class TeleOp extends OpMode{
     public void stop(){
         FtcDashboard.getInstance().stopCameraStream();
         robot.turretFlywheel.setPower(0);
-        robot.turret.setPower(0);
+        robot.intakeFlywheel.setPower(0);
         vision.close();
     }
 
@@ -99,6 +112,7 @@ public class TeleOp extends OpMode{
             telemetry.addLine("\nkey:\nXYZ = X (Right), Y (Forward), Z (Up) dist.");
             telemetry.addLine("PRY = Pitch, Roll & Yaw (XYZ Rotation)");
 
+            telemetry.addData("color", String.format("%08X", vision.getColor()));
             return null;
         }
     }
@@ -132,6 +146,9 @@ public class TeleOp extends OpMode{
                     robot.revTurret();
                     spindexerTarget = SpindexerPosition.B_OUT;
                     robot.setSpindexer(spindexerTarget);
+                    state = 12;
+                    return Coroutine.Yield.delay(Math.max(TURRET_REV_UP_TIME, SPINDEXER_ROTATION_TIME));
+                case 12:
                     robot.flick();
                     state = 4;
                     return Coroutine.Yield.delay(FLICKER_FLICK_TIME);
