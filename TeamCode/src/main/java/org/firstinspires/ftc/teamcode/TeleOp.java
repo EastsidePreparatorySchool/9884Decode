@@ -6,12 +6,16 @@ import static org.firstinspires.ftc.teamcode.lib.Vector4.*;
 import static java.lang.Math.*;
 
 import android.annotation.SuppressLint;
+import android.graphics.Color;
+import android.health.connect.datatypes.SexualActivityRecord;
 
+import androidx.annotation.FloatRange;
 import androidx.annotation.Nullable;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
@@ -22,8 +26,10 @@ import org.firstinspires.ftc.teamcode.lib.Hardware;
 import org.firstinspires.ftc.teamcode.lib.Vector4;
 import org.firstinspires.ftc.teamcode.lib.vision.VisionRoutine;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Config
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "9884")
@@ -35,8 +41,30 @@ public class TeleOp extends OpMode{
 
     private int spindexerTarget = SpindexerPosition.A_IN;
 
-    public static boolean enableColor = false;
-    public static boolean enableApril = false;
+    public static int aprilTarget = 24;
+
+    public static int obelisk = 0;
+
+    public static double hoodSpeed = 0.05;
+
+    public static int turretMax = -50;
+    public static int turretMin = -800;
+    public static int turretSafetyRange = 50;
+    public static double turretSpeed = 0.2;
+    public static double turretSafeSpeed = 0.15;
+    public static double turretEpsilon = 0.05;
+
+    // ========== USER-TUNABLE PID ==========
+    // Error is normalized to [-1..1] where + means target is left of center (turn left).
+    public static double kP = 0.75;
+    public static double kI = 0.10;
+    public static double kD = 0.12;
+
+    // Integrate only when close-ish to target (prevents windup while far away / no target)
+    public static double iZone = 0.6;          // normalized error
+    public static double iMax  = 0.35;         // integral clamp (already multiplied by kI later)
+    public static double dAlpha = 0.6;         // derivative low-pass (1.0 = no filtering)
+
 
     @Override
     public void init(){
@@ -53,31 +81,37 @@ public class TeleOp extends OpMode{
         manager.start(new DriveTrainRoutine());
         manager.start(new SpindexerRoutine());
         manager.start(vision);
+        manager.start(new ColorRoutine());
         manager.start(new TurretRoutine());
+        manager.start(new IntakeRoutine());
+        manager.start(new HoodRoutine());
 
-        telemetry.addLine("--- Driver 2 Controls ---");
-        telemetry.addData("GP2 RB (Reset)", gamepad2.right_bumper);
-        telemetry.addData("GP2 LB (Turret+Lift)", gamepad2.left_bumper);
-        telemetry.addData("GP2 A (140° CW)", gamepad2.a);
-        telemetry.addData("GP2 B (60° CW)", gamepad2.b);
-        telemetry.addData("GP2 Y (60° CCW)", gamepad2.y);
-        telemetry.addData("GP2 X (135° CCW)", gamepad2.x);
+        robot.turretBase.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        robot.turretBase.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        manager.disableAllExcept(vision);
     }
 
-    @SuppressLint("DefaultLocale")
+    @Override
+    public void init_loop(){
+        manager.loop(getRuntime());
+        Optional<AprilTagDetection> opt = vision.getDetections().stream().filter(d -> d.id >= 21 && d.id <= 23).findAny();
+        opt.ifPresent(aprilTagDetection -> obelisk = aprilTagDetection.id);
+    }
+
+    @Override
+    public void start(){
+        manager.enableAll();
+        robot.turretBase.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        robot.turretBase.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    }
+
     @Override
     public void loop(){
-        if (enableColor){
-            vision.setCamera(VisionRoutine.CameraState.ColorCamera);
-            enableColor = false;
-        }
-        if (enableApril){
-            vision.setCamera(VisionRoutine.CameraState.AprilTagCamera);
-            enableApril = false;
-        }
         manager.loop(getRuntime());
         telemetry.update();
     }
+
     @Override
     public void stop(){
         FtcDashboard.getInstance().stopCameraStream();
@@ -86,36 +120,186 @@ public class TeleOp extends OpMode{
         vision.close();
     }
 
-    private class TurretRoutine extends Coroutine{
+    class ColorRoutine extends Coroutine{
+
+        @Nullable
         @Override
-        public Object loop(){
-            for (AprilTagDetection detection : vision.getDetections()) {
-                if (detection.metadata != null) {
-                    telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
-
-                    //if (!detection.metadata.name.contains("Obelisk"))
-                    {
-                        telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)",
-                                detection.robotPose.getPosition().x,
-                                detection.robotPose.getPosition().y,
-                                detection.robotPose.getPosition().z));
-                        telemetry.addLine(String.format("PRY %6.1f %6.1f %6.1f  (deg)",
-                                detection.robotPose.getOrientation().getPitch(AngleUnit.DEGREES),
-                                detection.robotPose.getOrientation().getRoll(AngleUnit.DEGREES),
-                                detection.robotPose.getOrientation().getYaw(AngleUnit.DEGREES)));
-                    }
-                } else {
-                    telemetry.addLine(String.format("\n==== (ID %d) Unknown", detection.id));
-                    telemetry.addLine(String.format("Center %6.0f %6.0f   (pixels)", detection.center.x, detection.center.y));
-                }
+        protected Object loop(){
+            if (gamepad2.bWasPressed()){
+                //vision.toggleCamera();
             }
-            telemetry.addLine("\nkey:\nXYZ = X (Right), Y (Forward), Z (Up) dist.");
-            telemetry.addLine("PRY = Pitch, Roll & Yaw (XYZ Rotation)");
 
-            telemetry.addData("color", String.format("%08X", vision.getColor()));
+            float[] hsv = new float[3];
+            Color.colorToHSV(vision.getColor(), hsv);
+
+            telemetry.addData("h", hsv[0]);
+            telemetry.addData("s", hsv[1]);
+            telemetry.addData("v", hsv[2]);
+
             return null;
         }
     }
+
+    class HoodRoutine extends Coroutine{
+        @FloatRange(from = 0, to = 1)
+        double pos = 0;
+
+        @Nullable
+        @Override
+        protected Object loop(){
+            if(gamepad2.dpad_down){
+                pos -= hoodSpeed;
+            }
+            if (gamepad2.dpad_up){
+                pos += hoodSpeed;
+            }
+            pos = Math.max(0, Math.min(1, pos));
+            robot.hood.setPosition(pos);
+
+            return null;
+        }
+    }
+
+    class IntakeRoutine extends Coroutine{
+
+        @Nullable
+        @Override
+        protected Object loop(){
+            robot.intakeFlywheel.setPower(gamepad2.right_trigger * (gamepad2.a ? -1 : 1));
+
+            return null;
+        }
+    }
+
+    class TurretRoutine extends Coroutine{
+        private double integral = 0.0;
+        private double prevErr = 0.0;
+        private double prevT = Double.NaN;
+        private double dFilt = 0.0;
+
+        private void resetPid(){
+            integral = 0.0;
+            prevErr = 0.0;
+            prevT = Double.NaN;
+            dFilt = 0.0;
+        }
+
+        @SuppressLint("DefaultLocale")
+        @Override
+        public Object loop(){
+            Optional<AprilTagDetection> optional = vision.getDetections().stream().filter(d -> d.id == aprilTarget).findAny();
+            if (!optional.isPresent()){
+                // Manual turret control when target is not visible (gamepad2 bumpers).
+                double out = 0.0;
+                if (gamepad2.left_stick_x != 0){
+                    out = -gamepad2.left_stick_x * turretSpeed;
+                } else {
+                    robot.turretBase.setPower(0);
+                    resetPid();
+                    telemetry.addData("turretMode", "idle (no target)");
+                    return null;
+                }
+
+                final int pos = robot.turretBase.getCurrentPosition();
+
+                // safety: never drive past hard limits
+                if (out < 0 && (pos - turretMin) <= 0) out = 0;
+                if (out > 0 && (turretMax - pos) <= 0) out = 0;
+
+                // safety: reduce speed near limits
+                if (out < 0 && (pos - turretMin) <= turretSafetyRange){
+                    if (out < -turretSafeSpeed) out = -turretSafeSpeed;
+                }
+                if (out > 0 && (turretMax - pos) <= turretSafetyRange){
+                    if (out > turretSafeSpeed) out = turretSafeSpeed;
+                }
+
+                robot.turretBase.setPower(out);
+                resetPid();
+
+                telemetry.addData("turretMode", "manual");
+                telemetry.addData("turretPos", pos);
+                telemetry.addData("turretOut", out);
+                return null;
+            }
+
+            telemetry.addData("turretMode", "auto");
+
+            AprilTagDetection detection = optional.get();
+
+            final double centerX = VisionRoutine.frameWidth / 2d;
+            final double errorPx = centerX - detection.center.x;          // + => target is left of center
+            final double error   = errorPx / centerX;                      // normalize to [-1..1]
+
+            telemetry.addData("dx", errorPx);
+            telemetry.addData("dxN", error);
+            telemetry.addData("d", detection.ftcPose.z);
+
+            final int pos = robot.turretBase.getCurrentPosition();
+            telemetry.addData("turretPos", pos);
+
+            // deadband in pixels (keeps turret from buzzing)
+            if (Math.abs(errorPx) < turretEpsilon * VisionRoutine.frameWidth){
+                robot.turretBase.setPower(0);
+                resetPid();
+                return null;
+            }
+
+            // dt
+            final double now = getRuntime();
+            final double dt = (Double.isNaN(prevT) ? 0.0 : (now - prevT));
+            prevT = now;
+
+            // integral with iZone + clamp
+            if (dt > 0.0 && Math.abs(error) <= iZone){
+                integral += error * dt;
+                if (integral > iMax) integral = iMax;
+                if (integral < -iMax) integral = -iMax;
+            } else {
+                integral = 0.0;
+            }
+
+            // derivative (filtered)
+            double d = 0.0;
+            if (dt > 0.0) d = (error - prevErr) / dt;
+            prevErr = error;
+            dFilt = dAlpha * d + (1.0 - dAlpha) * dFilt;
+
+            // PID output
+            double out = getOut(error, pos);
+
+            robot.turretBase.setPower(out);
+
+            telemetry.addData("tPID_p", kP * error);
+            telemetry.addData("tPID_i", kI * integral);
+            telemetry.addData("tPID_d", kD * dFilt);
+            telemetry.addData("tPID_out", out);
+
+            return null;
+        }
+
+        private double getOut(double error, int pos){
+            double out = (kP * error) + (kI * integral) + (kD * dFilt);
+
+            // clamp to your configured turret speed limits
+            if (out > turretSpeed) out = turretSpeed;
+            if (out < -turretSpeed) out = -turretSpeed;
+
+            // safety: never drive past hard limits
+            if (out < 0 && (pos - turretMin) <= 0) out = 0;
+            if (out > 0 && (turretMax - pos) <= 0) out = 0;
+
+            // safety: reduce speed near limits (same intent as previous bang-bang code)
+            if (out < 0 && (pos - turretMin) <= turretSafetyRange){
+                if (out < -turretSafeSpeed) out = -turretSafeSpeed;
+            }
+            if (out > 0 && (turretMax - pos) <= turretSafetyRange){
+                if (out > turretSafeSpeed) out = turretSafeSpeed;
+            }
+            return out;
+        }
+    }
+
 
     private class SpindexerRoutine extends Coroutine{
         private int state = 0;
@@ -198,12 +382,12 @@ public class TeleOp extends OpMode{
             double ly = -gamepad1.left_stick_y;
             double rx = gamepad1.right_stick_x;
 
-            telemetry.addData("lx", lx);
-            telemetry.addData("ly", ly);
-            telemetry.addData("rx", rx);
+//            telemetry.addData("lx", lx);
+//            telemetry.addData("ly", ly);
+//            telemetry.addData("rx", rx);
 
-            telemetry.addLine(VDrive.toString());
-            telemetry.addLine(mult(VDrive, 1).toString());
+//            telemetry.addLine(VDrive.toString());
+//            telemetry.addLine(mult(VDrive, 1).toString());
 
             ArrayList<Vector4> powerList = new ArrayList<>();
             powerList.add(mult(VDrive, ly));
@@ -216,12 +400,12 @@ public class TeleOp extends OpMode{
             power.mult(1 - 0.5 * gamepad1.right_trigger);
             robot.powerMotors(power);
 
-            telemetry.addData("power w", power.w);
-            telemetry.addData("power x", power.x);
-            telemetry.addData("power y", power.y);
-            telemetry.addData("power z", power.z);
+//            telemetry.addData("power w", power.w);
+//            telemetry.addData("power x", power.x);
+//            telemetry.addData("power y", power.y);
+//            telemetry.addData("power z", power.z);
 
-            robot.logMotorPos();
+//            robot.logMotorPos();
             robot.logHeading();
 
             return null;

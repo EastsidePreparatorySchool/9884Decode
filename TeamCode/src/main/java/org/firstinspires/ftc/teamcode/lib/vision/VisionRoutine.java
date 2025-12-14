@@ -2,11 +2,13 @@ package org.firstinspires.ftc.teamcode.lib.vision;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.util.Size;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.function.Consumer;
@@ -29,7 +31,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Config
 public final class VisionRoutine extends Coroutine implements CameraStreamSource{
+    public static int frameWidth = 1280;
+    public static int frameHeight = 720;
+
+
     private final AprilTagProcessor processor;
     private final VisionPortal portal;
     private final CameraStreamProcessor streamer;
@@ -42,6 +49,7 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
         AprilTagCamera,
         ColorCamera
     }
+
 
     @Nullable
     private ArrayList<AprilTagDetection> detections = null;
@@ -60,7 +68,7 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
 
     @Override
     public Object loop(){
-        detections = processor.getFreshDetections();
+        detections = processor.getDetections();
 
         return getDetections();
     }
@@ -77,6 +85,16 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
     @ColorInt
     public int getColor(){
         return color.getColor();
+    }
+
+    public CameraState getCamera(){
+        return portal.getActiveCamera() == aprilCam ? CameraState.AprilTagCamera : CameraState.ColorCamera;
+    }
+
+    public void toggleCamera(){
+        CameraState state = getCamera();
+        CameraState newState = state == CameraState.ColorCamera ? CameraState.AprilTagCamera : CameraState.ColorCamera;
+        setCamera(newState);
     }
 
     public void setCamera(CameraState camera){
@@ -149,6 +167,8 @@ public final class VisionRoutine extends Coroutine implements CameraStreamSource
                     portal.addProcessor(chained)
                             .addProcessor(color)
                             .setAutoStartStreamOnBuild(true)
+                            .setCameraResolution(new Size(frameWidth, frameHeight))
+                            .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
                         .build(),
                     chained,
                     streamer,

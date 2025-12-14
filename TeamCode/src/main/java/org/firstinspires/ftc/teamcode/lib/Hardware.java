@@ -31,8 +31,6 @@ public final class Hardware{
 
     public static final double SPINDEXER_DEGREE_RANGE = 330;
     public static final double SPINDEXER_ROTATION_TIME = 0.3;
-    public static double FLICKER_REST_POSITION = 0;
-    public static double FLICKER_FLICK_POSITION = 0.5;
     public static double FLICKER_FLICK_TIME = 0.3;
     public static final double TURRET_REV_UP_TIME = 1.0;
     public static final double TURRET_REV_DOWN_TIME = 1.0;
@@ -110,10 +108,11 @@ public final class Hardware{
         flicker = hardwareMap.servo.get("flicker");
         flicker.scaleRange(0.8, 1);
         unflick();
+        hood = hardwareMap.servo.get("hood");
+        hood.scaleRange(0.1, 0.45);
 
         turretFlywheel = hardwareMap.dcMotor.get("turretFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        hood = hardwareMap.servo.get("hood");
         intakeFlywheel = hardwareMap.dcMotor.get("intakeFly");
         turretFlywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         turretBase = hardwareMap.dcMotor.get("turretBase");
@@ -131,7 +130,7 @@ public final class Hardware{
     }
 
     public void revTurret(){
-        turretFlywheel.setPower(1);
+        turretFlywheel.setPower(-1);
     }
     public void endRevTurret(){
         turretFlywheel.setPower(0);

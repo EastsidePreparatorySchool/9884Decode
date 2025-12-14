@@ -68,8 +68,11 @@ public abstract class Coroutine{
     public static class Manager{
         private final HashSet<Coroutine> routines;
 
+        private final HashSet<Coroutine> disabled;
+
         public Manager(){
             routines = new HashSet<>();
+            disabled = new HashSet<>();
         }
 
         public void loop(double time){
@@ -99,6 +102,8 @@ public abstract class Coroutine{
 
                 }
 
+                if (disabled.contains(routine)) continue;
+
                 routine.latest = routine.loop();
             }
         }
@@ -115,6 +120,27 @@ public abstract class Coroutine{
 
         public boolean end(Coroutine routine){
             return routines.remove(routine);
+        }
+
+        public boolean disable(Coroutine routine){
+            return disabled.add(routine);
+        }
+
+        public boolean enable(Coroutine routine){
+            return disabled.remove(routine);
+        }
+
+        public void disableAll(){
+            disabled.addAll(routines);
+        }
+
+        public void enableAll(){
+            disabled.clear();
+        }
+
+        public void disableAllExcept(Coroutine routine){
+            disableAll();
+            enable(routine);
         }
     }
 }

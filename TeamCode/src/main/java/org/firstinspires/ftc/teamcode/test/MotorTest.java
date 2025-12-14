@@ -25,6 +25,7 @@ public class MotorTest extends OpMode{
 
     @Override
     public void loop(){
+        telemetry.addData("pos", motor.getCurrentPosition());
         motor.setPower(power);
     }
 }
